@@ -1,18 +1,19 @@
-import { Redirect } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '../src/contexts/AuthContext';
+import { Redirect } from "expo-router";
+import { useAuthStore } from "@/src/store/authStore";
+import { View, ActivityIndicator } from "react-native";
 
 export default function Index() {
-    const { user, loading } = useAuth();
+  const { token, hydrated } = useAuthStore();
 
-    if (loading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#059669" />
-            </View>
-        );
-    }
+  if (!hydrated) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#090909", alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color="#10b981" />
+      </View>
+    );
+  }
 
-    // Redirecionar baseado no estado de autenticação
-    return <Redirect href={user ? '/(app)/(tabs)' : '/(auth)/login'} />;
+  return token
+    ? <Redirect href="/(app)" />
+    : <Redirect href="/(auth)" />;
 }
