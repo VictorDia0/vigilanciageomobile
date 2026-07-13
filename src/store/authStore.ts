@@ -7,16 +7,22 @@ interface User {
   id: number;
   name: string;
   email: string;
-  agente_id?: number;
+  role: string;
+  cidade_id?: number;
+  cidade?: {
+    id: number;
+    nome: string;
+    uf: string;
+  };
 }
 
 interface AuthState {
   token: string | null;
   user: User | null;
+  authenticated: boolean;
   hydrated: boolean;
   loading: boolean;
   error: string | null;
-
   login: (email: string, senha: string) => Promise<boolean>;
   logout: () => void;
   setHydrated: () => void;
@@ -24,9 +30,10 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
-      token: null,
+    (set) => ({
+      token: null,              // ← estava faltando
       user: null,
+      authenticated: false,
       hydrated: false,
       loading: false,
       error: null,
@@ -39,26 +46,28 @@ export const useAuthStore = create<AuthState>()(
             password: senha,
           });
 
-          const token = data.access_token ?? data.token;
-          const user = data.user ?? data.data;
+          const token = data.access_token ?? data.token ?? null;
+          const user = data.data ?? data.user ?? data;
 
-          // Injeta token no header global
-          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+          const role = user?.role ?? user?.roles?.[0];
+          if (role && role !== "agente") {
+            set({ error: "Acesso restrito ao app de campo. Use o portal web.", loading: false });
+            return false;
+          }
 
-          set({ token, user, loading: false });
+          set({ token, user, authenticated: true, loading: false });
           return true;
         } catch (err: any) {
-          const msg =
-            err?.response?.data?.message ??
-            "E-mail ou senha incorretos.";
+          const msg = err?.response?.data?.message ?? "E-mail ou senha incorretos.";
           set({ error: msg, loading: false });
           return false;
         }
       },
 
       logout: () => {
-        api.defaults.headers.common["Authorization"] = "";
-        set({ token: null, user: null, error: null });
+        api.post("/auth/logout").catch(() => {});
+        delete api.defaults.headers.common["Authorization"];
+        set({ token: null, user: null, authenticated: false, error: null, loading: false });
       },
 
       setHydrated: () => set({ hydrated: true }),
@@ -66,13 +75,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "vigiageo-auth",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ token: s.token, user: s.user }),
-
-      onRehydrateStorage: () => (state: AuthState | undefined) => {
-        console.log("rehydrated:", state?.token);
-        if (state?.token) {
-          api.defaults.headers.common["Authorization"] = `Bearer ${state.token}`;
-        }
+      partialize: (s) => ({ token: s.token, user: s.user, authenticated: s.authenticated }),
+      onRehydrateStorage: () => (state) => {
         state?.setHydrated();
       },
     }

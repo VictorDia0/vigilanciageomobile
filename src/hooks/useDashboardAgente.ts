@@ -1,89 +1,42 @@
 import { useState, useCallback } from "react";
-import { api } from "@/src/services/api";
 
-export interface DashboardData {
-  tratamento: {
-    id: number;
-    numero: number;
-    ano: number;
-    data_inicio: string;
-    data_fim: string;
-    status: string;
-  } | null;
-  areas: {
-    total: number;
-    ativas: number;
-  };
-  quadras: {
-    total: number;
-    nao_iniciadas: number;
-    em_andamento: number;
-    concluidas: number;
-  };
-  ocorrencias: {
-    total: number;
-    pendentes: number;
-    em_andamento: number;
-  };
-}
+import { DASHBOARD_EMPTY_STATE } from "@/src/constants/dashboard";
+import { fetchDashboardData } from "@/src/services/dashboard";
+import { findTratamentoAtivo } from "@/src/mappers/tratamento";
+import { aggregateAreas } from "@/src/mappers/area";
+import { aggregateQuadras } from "@/src/mappers/quadra";
+import { aggregateOcorrencias } from "@/src/mappers/ocorrencia";
+import type { DashboardData, DashboardState } from "@/src/types/dashboard";
+import { useAuthStore } from "../store/authStore";
 
-const EMPTY: DashboardData = {
-  tratamento: null,
-  areas: { total: 0, ativas: 0 },
-  quadras: { total: 0, nao_iniciadas: 0, em_andamento: 0, concluidas: 0 },
-  ocorrencias: { total: 0, pendentes: 0, em_andamento: 0 },
-};
-
-export function useDashboardAgente() {
-  const [data, setData] = useState<DashboardData>(EMPTY);
+export function useDashboardAgente(): DashboardState & { fetch: () => Promise<void> } {
+  const { user } = useAuthStore();
+  const [data, setData] = useState<DashboardData>(DASHBOARD_EMPTY_STATE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async () => {
+    if (!user?.id) return;
+
     setLoading(true);
     setError(null);
     try {
-      // Busca áreas do agente
-      const [areasRes, ocorrenciasRes] = await Promise.all([
-        api.get("/areas"),
-        api.get("/ocorrencias"),
-      ]);
+      const { areas, ocorrencias, tratamentos } = await fetchDashboardData();
 
-      const areas: any[] = areasRes.data?.data ?? areasRes.data ?? [];
-      const ocorrencias: any[] = ocorrenciasRes.data?.data ?? ocorrenciasRes.data ?? [];
-
-      // Agrega quadras de todas as áreas
-      let quadras = { total: 0, nao_iniciadas: 0, em_andamento: 0, concluidas: 0 };
-      for (const area of areas) {
-        const qs: any[] = area.quadras ?? [];
-        quadras.total += qs.length;
-        quadras.nao_iniciadas += qs.filter((q) => q.status === "nao_iniciada").length;
-        quadras.em_andamento += qs.filter((q) => q.status === "em_andamento").length;
-        quadras.concluidas += qs.filter((q) => q.status === "concluida").length;
-      }
-
-      // Tratamento ativo vem das áreas (o backend já resolve)
-      const tratamento = areas[0]?.tratamento_ativo ?? null;
+      const areasDoAgente = aggregateAreas(areas, user.id);
 
       setData({
-        tratamento,
-        areas: {
-          total: areas.length,
-          ativas: areas.filter((a) => a.ativo).length,
-        },
-        quadras,
-        ocorrencias: {
-          total: ocorrencias.length,
-          pendentes: ocorrencias.filter((o) => o.status === "pendente").length,
-          em_andamento: ocorrencias.filter((o) => o.status === "em_andamento").length,
-        },
+        tratamento: findTratamentoAtivo(tratamentos),
+        areas: areasDoAgente,
+        quadras: aggregateQuadras(areasDoAgente.lista),
+        ocorrencias: aggregateOcorrencias(ocorrencias, user.id),
       });
     } catch {
       setError("Não foi possível carregar os dados.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   return { data, loading, error, fetch };
 }
