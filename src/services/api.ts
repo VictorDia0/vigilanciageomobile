@@ -1,6 +1,10 @@
 import axios from "axios";
+import type { AxiosError } from "axios";
+import { resolveBaseUrl } from "./env";
+import { secureStorage } from "./secureStorage";
+import { handleUnauthorized } from "./unauthorizedHandler";
 
-const BASE_URL = 'http://192.168.15.24:8000/api';
+const BASE_URL = resolveBaseUrl(process.env);
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -21,19 +25,26 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// Trata 401
+async function refreshToken(): Promise<void> {
+  const { data } = await api.post("/auth/refresh");
+  const token = data?.data?.access_token ?? data?.access_token;
+  if (!token) {
+    throw new Error("Refresh não retornou access_token.");
+  }
+  await secureStorage.setToken(token);
+  const { useAuthStore } = await import("@/src/store/authStore");
+  useAuthStore.getState().setToken(token);
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    const isLogoutRoute = error.config?.url?.includes('/auth/logout');
-    const is401 = error.response?.status === 401;
-
-    if (is401 && !isLogoutRoute) {
-      import("@/src/store/authStore").then(({ useAuthStore }) => {
-        useAuthStore.getState().logout();
-      });
-    }
-
-    return Promise.reject(error);
-  }
+  (error: AxiosError) =>
+    handleUnauthorized(error, {
+      refresh: refreshToken,
+      retry: (config) => api.request(config),
+      logout: () =>
+        import("@/src/store/authStore").then(({ useAuthStore }) =>
+          useAuthStore.getState().logout()
+        ),
+    })
 );

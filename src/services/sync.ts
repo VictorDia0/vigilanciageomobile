@@ -26,6 +26,7 @@ export async function sincronizarPendentes(): Promise<ResultadoSync> {
         const p = item.payload as RegistrarImovelOffline;
         const imovel = await visitaService.criarImovel({
           quadra_id: p.quadra_id,
+          client_uuid: item.client_uuid,
           ...p.imovel,
         });
         await visitaService.registrarImovel(p.visita_id, {

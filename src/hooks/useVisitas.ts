@@ -13,6 +13,8 @@ import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
 import { outbox } from "../db/outbox";
 import { isErroDeRede, sincronizarPendentes, totalPendentes } from "../services/sync";
+import { locationService } from "../services/locationService";
+import { useAuthStore } from "../store/authStore";
 
 // ─── Steps do fluxo ───────────────────────────────────────────────────────────
 //
@@ -43,6 +45,8 @@ export interface ImovelFormState {
   tratado: boolean;
   quantidade_larvicida: string;
   depositos_tratados: string;
+  /** URIs locais (expo-image-picker) — enviadas via visitaService.uploadFoto ao salvar */
+  fotos: string[];
 }
 
 const FORM_VAZIO: ImovelFormState = {
@@ -55,6 +59,7 @@ const FORM_VAZIO: ImovelFormState = {
   tratado: false,
   quantidade_larvicida: "",
   depositos_tratados: "",
+  fotos: [],
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -225,6 +230,31 @@ export function useVisitas() {
     setLoading(true);
     setError(null);
 
+    // Geolocalização é obrigatória e validada contra o raio de 30km da
+    // cidade do agente antes de qualquer chamada — regra client-side, já
+    // que o backend não valida localização para Visita (só para Ocorrência).
+    try {
+      const posicao = await locationService.getCurrentPosition();
+      const cidade = useAuthStore.getState().user?.cidade;
+      if (cidade?.lat != null && cidade?.lng != null) {
+        const dentroDoRaio = locationService.isWithinRadius(posicao, {
+          latitude: cidade.lat,
+          longitude: cidade.lng,
+        });
+        if (!dentroDoRaio) {
+          setError(
+            "Você está fora do raio de 30km da cidade. Não é possível registrar o imóvel deste local."
+          );
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      setError("Não foi possível obter sua localização. Verifique a permissão de GPS.");
+      setLoading(false);
+      return;
+    }
+
     const horario = new Date().toTimeString().slice(0, 5);
     const dadosImovel = {
       logradouro: form.logradouro.trim(),
@@ -232,6 +262,27 @@ export function useVisitas() {
       sem_numero: form.sem_numero,
       tipo_imovel: form.tipo_imovel,
     };
+
+    // Fotos são melhor-esforço: se o upload falhar (ex.: sem rede), o
+    // registro do imóvel segue sem elas em vez de bloquear o fluxo todo.
+    let fotosEnviadas: string[] = [];
+    if (form.fotos.length > 0 && visitaAberta) {
+      try {
+        const uploads = await Promise.all(
+          form.fotos.map((uri, i) =>
+            visitaService.uploadFoto(visitaAberta.id, {
+              uri,
+              name: `foto-${Date.now()}-${i}.jpg`,
+              type: "image/jpeg",
+            })
+          )
+        );
+        fotosEnviadas = uploads.map((u) => u.path);
+      } catch {
+        // segue sem fotos
+      }
+    }
+
     const dadosRegistro = {
       horario_visita: horario,
       situacao: form.situacao as SituacaoImovel,
@@ -243,6 +294,7 @@ export function useVisitas() {
       depositos_tratados: form.tratado
         ? parseInt(form.depositos_tratados) || null
         : null,
+      fotos: fotosEnviadas.length > 0 ? fotosEnviadas : undefined,
     };
 
     try {
@@ -371,7 +423,7 @@ export function useVisitas() {
     } catch (err: any) {
       setError(
         err?.response?.data?.message ??
-          "Não foi possível encerrar o quarteirão."
+        "Não foi possível encerrar o quarteirão."
       );
     } finally {
       setLoading(false);

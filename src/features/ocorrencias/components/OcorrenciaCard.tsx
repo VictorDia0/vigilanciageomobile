@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { C } from "@/src/theme/tokens";
 import {
   ocorrenciaStatusCfg,
@@ -8,6 +9,7 @@ import {
 import type { Ocorrencia } from "@/src/types/ocorrencia";
 
 export function OcorrenciaCard({ oc }: { oc: Ocorrencia }) {
+  const router = useRouter();
   const status = ocorrenciaStatusCfg(oc.status);
   const tipo = tipoOcorrenciaCfg(oc.tipo);
 
@@ -20,7 +22,10 @@ export function OcorrenciaCard({ oc }: { oc: Ocorrencia }) {
     : null;
 
   return (
-    <Pressable style={s.card}>
+    <Pressable
+      style={s.card}
+      onPress={() => router.push(`/(app)/ocorrencias/${oc.id}`)}
+    >
       {/* Header: tipo + status */}
       <View style={s.header}>
         <View style={[s.badge, { backgroundColor: status.color + "15" }]}>

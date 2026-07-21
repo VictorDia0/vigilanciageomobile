@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -5,6 +6,7 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +14,8 @@ import { useRouter } from "expo-router";
 import { C } from "@/src/theme/tokens";
 import { Screen } from "@/src/components/ui";
 import { useAuthStore } from "@/src/store/authStore";
+import { ocorrenciaService } from "@/src/services/ocorrenciaService";
+import { sincronizarPendentes, totalPendentes } from "@/src/services/sync";
 
 // ─── Componentes locais ───────────────────────────────────────────────────────
 
@@ -53,6 +57,39 @@ export default function Perfil() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuthStore();
+  const [totalOcorrencias, setTotalOcorrencias] = useState<number | null>(null);
+  const [pendentes, setPendentes] = useState(0);
+  const [sincronizando, setSincronizando] = useState(false);
+
+  useEffect(() => {
+    setPendentes(totalPendentes());
+    if (!user?.id) return;
+    ocorrenciaService
+      .list()
+      .then((lista) => {
+        setTotalOcorrencias(lista.filter((o) => o.agente_id === user.id).length);
+      })
+      .catch(() => setTotalOcorrencias(null));
+  }, [user?.id]);
+
+  const handleSincronizar = async () => {
+    if (sincronizando) return;
+    setSincronizando(true);
+    try {
+      const r = await sincronizarPendentes();
+      setPendentes(totalPendentes());
+      Alert.alert(
+        "Sincronização concluída",
+        r.enviados > 0
+          ? `${r.enviados} registro(s) enviado(s).`
+          : "Nada para sincronizar no momento."
+      );
+    } catch {
+      Alert.alert("Erro", "Não foi possível sincronizar agora.");
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert("Sair", "Tem certeza que deseja sair?", [
@@ -90,28 +127,58 @@ export default function Perfil() {
           <Text style={s.userEmail}>{email}</Text>
         </View>
 
-        {/* Estatísticas — TODO: buscar da API quando o endpoint existir */}
+        {/* Estatísticas — agente e ocorrências reais; sem dado fabricado */}
         <Card>
           <View style={s.statsGrid}>
             <View style={s.statItem}>
-              <Text style={s.statValue}>127</Text>
-              <Text style={s.statLabel}>Visitas</Text>
-            </View>
-            <View style={s.statDivider} />
-            <View style={s.statItem}>
-              <Text style={s.statValue}>45</Text>
+              {totalOcorrencias === null ? (
+                <ActivityIndicator color={C.primary} size="small" />
+              ) : (
+                <Text style={s.statValue}>{totalOcorrencias}</Text>
+              )}
               <Text style={s.statLabel}>Ocorrências</Text>
             </View>
             <View style={s.statDivider} />
             <View style={s.statItem}>
-              <Text style={s.statValue}>98%</Text>
-              <Text style={s.statLabel}>Aprovação</Text>
+              <Text style={s.statValue}>{user?.agente?.matricula ?? "—"}</Text>
+              <Text style={s.statLabel}>Matrícula</Text>
+            </View>
+            <View style={s.statDivider} />
+            <View style={s.statItem}>
+              <Text style={s.statValue}>{user?.agente?.status ?? "—"}</Text>
+              <Text style={s.statLabel}>Status</Text>
             </View>
           </View>
         </Card>
 
         {/* Menu */}
         <Card>
+          <MenuItem
+            icon="cloud-upload-outline"
+            label="Sincronizar agora"
+            value={
+              sincronizando
+                ? "Sincronizando..."
+                : pendentes > 0
+                ? `${pendentes} pendente(s)`
+                : "Tudo em dia"
+            }
+            color={pendentes > 0 ? C.warning : C.text}
+            onPress={handleSincronizar}
+          />
+          <View style={s.divider} />
+          <MenuItem
+            icon="document-text-outline"
+            label="Relatórios"
+            onPress={() => router.push("/(app)/relatorios")}
+          />
+          <View style={s.divider} />
+          <MenuItem
+            icon="lock-closed-outline"
+            label="Alterar senha"
+            onPress={() => router.push("/(app)/perfil/senha")}
+          />
+          <View style={s.divider} />
           <MenuItem icon="person-outline" label="Dados pessoais" onPress={emBreve} />
           <View style={s.divider} />
           <MenuItem
@@ -120,8 +187,6 @@ export default function Perfil() {
             value="Ativadas"
             onPress={emBreve}
           />
-          <View style={s.divider} />
-          <MenuItem icon="shield-outline" label="Segurança" onPress={emBreve} />
           <View style={s.divider} />
           <MenuItem
             icon="document-text-outline"

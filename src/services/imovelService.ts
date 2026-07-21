@@ -23,4 +23,9 @@ export const imovelService = {
     const res = await api.post("/imoveis", payload);
     return unwrap<Imovel>(res);
   },
+
+  async show(imovelId: number): Promise<Imovel> {
+    const res = await api.get(`/imoveis/${imovelId}`);
+    return unwrap<Imovel>(res);
+  },
 };

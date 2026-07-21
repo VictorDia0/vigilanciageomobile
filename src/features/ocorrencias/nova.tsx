@@ -19,6 +19,8 @@ import { C } from "@/src/theme/tokens";
 import { Screen } from "@/src/components/ui";
 import { TIPOS, TIPO_NOMES, TIPO_ICONES, TIPO_CORES } from "@/src/constants/ocorrencia";
 import type { OcorrenciaTipo } from "@/src/types/ocorrencia";
+import { ocorrenciaService } from "@/src/services/ocorrenciaService";
+import { locationService } from "@/src/services/locationService";
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
@@ -114,13 +116,42 @@ export default function NovaOcorrencia() {
 
     setLoading(true);
     try {
-      // TODO: integrar com a API (POST /ocorrencias)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const posicao = await locationService.getCurrentPosition();
+
+      const endereco = [
+        form.endereco.trim(),
+        form.numero.trim(),
+        form.complemento.trim(),
+        form.bairro.trim(),
+        form.cidade.trim(),
+        form.cep.trim(),
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      await ocorrenciaService.store({
+        tipo: form.tipo,
+        descricao: form.descricao.trim() || null,
+        latitude: posicao.latitude,
+        longitude: posicao.longitude,
+        endereco: endereco || null,
+      });
+
       Alert.alert("Sucesso", "Ocorrência registrada com sucesso!", [
         { text: "OK", onPress: () => router.back() },
       ]);
-    } catch {
-      Alert.alert("Erro", "Não foi possível registrar a ocorrência.");
+    } catch (err: any) {
+      if (err instanceof Error && err.message === "Permissão de localização negada.") {
+        Alert.alert(
+          "Localização necessária",
+          "Ative a permissão de localização para registrar a ocorrência."
+        );
+      } else {
+        Alert.alert(
+          "Erro",
+          err?.response?.data?.message ?? "Não foi possível registrar a ocorrência."
+        );
+      }
     } finally {
       setLoading(false);
     }

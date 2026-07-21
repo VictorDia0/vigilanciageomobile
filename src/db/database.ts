@@ -28,5 +28,13 @@ function migrate(database: SQLite.SQLiteDatabase) {
       tentativas INTEGER NOT NULL DEFAULT 0,
       ultimo_erro TEXT
     );
+
+    -- Cache de leitura (Fase 2): último resultado bem-sucedido de uma
+    -- chamada GET, servido quando a chamada falha por erro de rede.
+    CREATE TABLE IF NOT EXISTS cache_leitura (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL,
+      atualizado_em TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }

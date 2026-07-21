@@ -1,5 +1,6 @@
-import { Tabs } from "expo-router";
+import { Tabs, Redirect } from "expo-router";
 import {
+  View,
   StyleSheet,
   Platform,
   Pressable,
@@ -20,6 +21,11 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { useEffect } from "react";
+import { useAuthStore } from "@/src/store/authStore";
+import { shouldRedirectToLogin } from "@/src/utils/authGuard";
+import { useInactivityLogout } from "@/src/hooks/useInactivityLogout";
+import { useNetworkSync } from "@/src/hooks/useNetworkSync";
+import { OfflineBanner } from "@/src/components/ui";
 
 function HapticTab({ onPress, children, style }: BottomTabBarButtonProps) {
   return (
@@ -60,6 +66,7 @@ const TABS = {
   areas: { outline: "map-outline", filled: "map", label: "Áreas" },
   visitas: { outline: "compass-outline", filled: "compass", label: "Visitas" },
   ocorrencias: { outline: "alert-circle-outline", filled: "alert-circle", label: "Ocorrências" },
+  relatorios: { outline: "document-text-outline", filled: "document-text", label: "Relatórios" },
   perfil: { outline: "person-outline", filled: "person", label: "Perfil" },
 } satisfies Record<string, TabConfig>;
 
@@ -107,7 +114,7 @@ function TabIcon({
           color={focused ? C.active : C.inactive}
         />
       </Animated.View>
-      
+
       {focused && (
         <Animated.View style={[styles.dot, { opacity: progress.value }]} />
       )}
@@ -117,60 +124,79 @@ function TabIcon({
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 export default function AppLayout() {
+  const { authenticated, hydrated } = useAuthStore();
+  useInactivityLogout();
+  const { online, pendentes } = useNetworkSync();
+
+  if (shouldRedirectToLogin(hydrated, authenticated)) {
+    return <Redirect href="/(auth)" />;
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarShowLabel: false,
-        tabBarHideOnKeyboard: true,
-        tabBarStyle: styles.tabBar,
-        tabBarButton: HapticTab,
-      }}
-    >
-      {/* Tabs principais — apontam pro index de cada pasta */}
-      <Tabs.Screen
-        name="index"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon config={TABS.index} focused={focused} />
-          ),
+    <View style={{ flex: 1 }}>
+      <OfflineBanner online={online} pendentes={pendentes} />
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarShowLabel: false,
+          tabBarHideOnKeyboard: true,
+          tabBarStyle: styles.tabBar,
+          tabBarButton: HapticTab,
         }}
-      />
-      <Tabs.Screen
-        name="areas"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon config={TABS.areas} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="visitas"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon config={TABS.visitas} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="ocorrencias"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon config={TABS.ocorrencias} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="perfil"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon config={TABS.perfil} focused={focused} />
-          ),
-        }}
-      />
-      
-    </Tabs>
-    
+      >
+        {/* Tabs principais — apontam pro index de cada pasta */}
+        <Tabs.Screen
+          name="index"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.index} focused={focused} />
+            ),
+          }}
+        />
+
+        <Tabs.Screen
+          name="areas"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.areas} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="relatorios"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.relatorios} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="visitas"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.visitas} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="ocorrencias"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.ocorrencias} focused={focused} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="perfil"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <TabIcon config={TABS.perfil} focused={focused} />
+            ),
+          }}
+        />
+
+      </Tabs>
+    </View>
   );
 }
 

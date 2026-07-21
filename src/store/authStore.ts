@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "@/src/services/api";
+import { secureStorage } from "@/src/services/secureStorage";
 
 interface User {
   id: number;
@@ -13,6 +14,14 @@ interface User {
     id: number;
     nome: string;
     uf: string;
+    lat?: number;
+    lng?: number;
+  };
+  agente?: {
+    id: number;
+    matricula: string;
+    telefone: string | null;
+    status: string;
   };
 }
 
@@ -24,14 +33,15 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   login: (email: string, senha: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  setToken: (token: string | null) => void;
   setHydrated: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,              // ← estava faltando
+      token: null,
       user: null,
       authenticated: false,
       hydrated: false,
@@ -55,6 +65,10 @@ export const useAuthStore = create<AuthState>()(
             return false;
           }
 
+          if (token) {
+            await secureStorage.setToken(token);
+          }
+
           set({ token, user, authenticated: true, loading: false });
           return true;
         } catch (err: any) {
@@ -64,20 +78,31 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      logout: () => {
-        api.post("/auth/logout").catch(() => {});
-        delete api.defaults.headers.common["Authorization"];
+      logout: async () => {
+        try {
+          await api.post("/auth/logout");
+        } catch {
+          // segue o logout local mesmo se a chamada falhar (ex.: sem rede)
+        }
+        await secureStorage.deleteToken();
         set({ token: null, user: null, authenticated: false, error: null, loading: false });
       },
+
+      setToken: (token) => set({ token }),
 
       setHydrated: () => set({ hydrated: true }),
     }),
     {
       name: "vigiageo-auth",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ token: s.token, user: s.user, authenticated: s.authenticated }),
+      // Só dado não sensível vai pro AsyncStorage — o token nunca é persistido
+      // aqui, só em memória + SecureStore (ver onRehydrateStorage abaixo).
+      partialize: (s) => ({ user: s.user, authenticated: s.authenticated }),
       onRehydrateStorage: () => (state) => {
-        state?.setHydrated();
+        secureStorage.getToken().then((token) => {
+          state?.setToken(token);
+          state?.setHydrated();
+        });
       },
     }
   )

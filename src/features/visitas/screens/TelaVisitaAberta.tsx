@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   SuccessBanner,
   WarningBanner,
   LoadingView,
+  SearchInput,
 } from "@/src/components/ui";
 import { ResumoVisita } from "../components/ResumoVisita";
 import { ImovelItem } from "../components/ImovelItem";
@@ -42,6 +43,15 @@ export function TelaVisitaAberta() {
   } = useVisitasContext();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [busca, setBusca] = useState("");
+
+  const imoveisFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    if (!termo) return imoveis;
+    return imoveis.filter((i) =>
+      (i.endereco_completo ?? "").toLowerCase().includes(termo)
+    );
+  }, [imoveis, busca]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -127,9 +137,22 @@ export function TelaVisitaAberta() {
                 <Text style={s.listBadgeText}>{imoveis.length}</Text>
               </View>
             </View>
-            {imoveis.map((imovel) => (
-              <ImovelItem key={imovel.id} imovel={imovel} />
-            ))}
+            <SearchInput
+              value={busca}
+              onChangeText={setBusca}
+              placeholder="Buscar por endereço..."
+            />
+            {imoveisFiltrados.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title="Nenhum imóvel encontrado"
+                subtitle="Tente outro termo de busca."
+              />
+            ) : (
+              imoveisFiltrados.map((imovel) => (
+                <ImovelItem key={imovel.id} imovel={imovel} />
+              ))
+            )}
           </View>
         )}
 

@@ -5,6 +5,12 @@ import type {
   Visita,
 } from "@/src/types/visita";
 import { Imovel } from "../types/imovel";
+import { cacheLeitura } from "../db/cache";
+
+/** true quando o erro do axios é falta de rede (sem resposta do servidor) */
+function isErroDeRede(err: any): boolean {
+  return !!err && !err.response;
+}
 
 function unwrap<T>(res: any): T {
   return res.data?.data ?? res.data;
@@ -22,13 +28,11 @@ async function buscarVisitaAberta(
     const res = await api.get("/visitas", {
       params: { quadra_id: quadraId, tratamento_id: tratamentoId },
     });
-    console.log("[buscarVisitaAberta] resposta:", JSON.stringify(res.data));
     const lista: Visita[] = unwrap<Visita[]>(res) ?? [];
     return lista.find((v) =>
       v.status?.value === "aberta" || v.status?.value === "em_andamento"
     ) ?? null;
-  } catch (err: any) {
-    console.log("[buscarVisitaAberta] erro:", err?.response?.status, err?.message);
+  } catch {
     return null;
   }
 }
@@ -63,6 +67,8 @@ interface CriarImovelPayload {
   numero: string | null;
   sem_numero: boolean;
   tipo_imovel: string;
+  /** idempotência p/ sync offline — servidor não duplica no reenvio */
+  client_uuid?: string;
 }
 
 async function criarImovel(payload: CriarImovelPayload): Promise<Imovel> {
@@ -71,8 +77,37 @@ async function criarImovel(payload: CriarImovelPayload): Promise<Imovel> {
 }
 
 async function listarImoveisDaQuadra(quadraId: number): Promise<Imovel[]> {
-  const res = await api.get(`/imoveis/quadra/${quadraId}`);
-  return unwrap<Imovel[]>(res) ?? [];
+  const chaveCache = `imoveis_quadra_${quadraId}`;
+  try {
+    const res = await api.get(`/imoveis/quadra/${quadraId}`);
+    const imoveis = unwrap<Imovel[]>(res) ?? [];
+    cacheLeitura.set(chaveCache, imoveis);
+    return imoveis;
+  } catch (err) {
+    if (isErroDeRede(err)) {
+      const cache = cacheLeitura.get<Imovel[]>(chaveCache);
+      if (cache) return cache;
+    }
+    throw err;
+  }
+}
+
+interface FotoUploadResult {
+  path: string;
+  url: string;
+}
+
+async function uploadFoto(
+  visitaId: number,
+  arquivo: { uri: string; name: string; type: string }
+): Promise<FotoUploadResult> {
+  const formData = new FormData();
+  formData.append("foto", arquivo as unknown as Blob);
+
+  const res = await api.post(`/visitas/${visitaId}/fotos`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return unwrap<FotoUploadResult>(res);
 }
 
 export const visitaService = {
@@ -82,5 +117,6 @@ export const visitaService = {
   criarImovel,
   listarImoveisDaQuadra,
   buscarVisitaAberta,
-  encerrarQuadra
+  encerrarQuadra,
+  uploadFoto,
 };

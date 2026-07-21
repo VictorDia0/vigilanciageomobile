@@ -65,6 +65,8 @@ export interface RegistrarImovelPayload {
   depositos_tratados: number | null;
   /** idempotência p/ sync offline — servidor ignora duplicatas */
   client_uuid?: string;
+  /** paths retornados por visitaService.uploadFoto */
+  fotos?: string[];
 }
 
 // ─── Recuperação (imóveis fechados) ──────────────────────────────────────────

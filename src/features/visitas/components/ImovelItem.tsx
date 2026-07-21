@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { C, shadows } from "@/src/theme/tokens";
 import { StatusPill } from "@/src/components/ui";
 import { situacaoCfg } from "@/src/constants/visita";
@@ -10,13 +11,24 @@ interface Props {
 }
 
 export function ImovelItem({ imovel }: Props) {
+  const router = useRouter();
   const sitVal = imovel.visita_dados?.situacao?.value ?? "";
   const cfg = situacaoCfg(sitVal || null);
   const horario = imovel.visita_dados?.horario_visita;
   const tipo = imovel.tipo_imovel?.label ?? "Imóvel";
+  const podeAbrirDetalhes = imovel.id > 0 && !imovel.pendente_sync;
 
   return (
-    <View style={s.card}>
+    <Pressable
+      style={s.card}
+      disabled={!podeAbrirDetalhes}
+      onPress={() =>
+        router.push({
+          pathname: "/(app)/visitas/imovel/[id]",
+          params: { id: String(imovel.id), imovel: JSON.stringify(imovel) },
+        })
+      }
+    >
       <View style={[s.icon, { backgroundColor: cfg.color + "12" }]}>
         <Ionicons name={cfg.icon} size={22} color={cfg.color} />
       </View>
@@ -46,7 +58,7 @@ export function ImovelItem({ imovel }: Props) {
         <Ionicons name="cloud-upload-outline" size={18} color={C.warning} />
       ) : null}
       {sitVal ? <StatusPill label={cfg.label} color={cfg.color} /> : null}
-    </View>
+    </Pressable>
   );
 }
 

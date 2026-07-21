@@ -9,8 +9,11 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Image,
+    Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { C } from "@/src/theme/tokens";
 import { PageHeader, ErrorBanner } from "@/src/components/ui";
 import { SITUACOES_FORM, TIPOS_IMOVEL } from "@/src/constants/visita";
@@ -35,6 +38,25 @@ export function TelaFormImovel() {
 
     const set = <K extends keyof ImovelFormState>(key: K, value: ImovelFormState[K]) =>
         setForm((prev) => ({ ...prev, [key]: value }));
+
+    const tirarFoto = async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Permissão necessária", "Ative a permissão da câmera para anexar fotos.");
+            return;
+        }
+        const resultado = await ImagePicker.launchCameraAsync({
+            quality: 0.6,
+            allowsEditing: false,
+        });
+        if (!resultado.canceled && resultado.assets[0]) {
+            set("fotos", [...form.fotos, resultado.assets[0].uri]);
+        }
+    };
+
+    const removerFoto = (uri: string) => {
+        set("fotos", form.fotos.filter((f) => f !== uri));
+    };
 
     return (
         <KeyboardAvoidingView
@@ -225,6 +247,27 @@ export function TelaFormImovel() {
                     )}
                 </Card>
 
+                {/* Fotos */}
+                <Card>
+                    <FieldLabel text="FOTOS (OPCIONAL)" />
+                    <View style={s.fotosRow}>
+                        {form.fotos.map((uri) => (
+                            <View key={uri} style={s.fotoThumbWrap}>
+                                <Image source={{ uri }} style={s.fotoThumb} />
+                                <Pressable
+                                    style={s.fotoRemoveBtn}
+                                    onPress={() => removerFoto(uri)}
+                                    hitSlop={8}
+                                >
+                                    <Ionicons name="close" size={14} color="#FFF" />
+                                </Pressable>
+                            </View>
+                        ))}
+                        <Pressable style={s.fotoAddBtn} onPress={tirarFoto}>
+                            <Ionicons name="camera-outline" size={22} color={C.textMut} />
+                        </Pressable>
+                    </View>
+                </Card>
 
                 <Pressable
                     style={[s.btnSalvar, loading && s.btnDisabled]}
@@ -340,6 +383,32 @@ const s = StyleSheet.create({
     switchLabel: { fontSize: 15, fontWeight: "500", color: C.text },
     switchSub: { fontSize: 12, color: C.textSec, marginTop: 2 },
     larvicidaFields: { gap: 12, paddingTop: 4 },
+
+    fotosRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    fotoThumbWrap: { position: "relative" },
+    fotoThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: C.bg },
+    fotoRemoveBtn: {
+        position: "absolute",
+        top: -6,
+        right: -6,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: C.danger,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    fotoAddBtn: {
+        width: 64,
+        height: 64,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: C.border,
+        borderStyle: "dashed",
+        backgroundColor: C.bg,
+        alignItems: "center",
+        justifyContent: "center",
+    },
 
     btnSalvar: {
         flexDirection: "row",

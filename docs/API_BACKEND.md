@@ -1,5 +1,9 @@
 # Endpoints necessários no Laravel
 
+> **Status: IMPLEMENTADO** em 13/07/2026 (projeto `vigilancia-geo-backend`).
+> Rodar `php artisan migrate` — foram adicionadas 2 migrations:
+> `origem` em `visitas` e `client_uuid` em `imoveis`.
+
 ## Já existem (manter)
 
 | Método | Rota | Uso no app |
