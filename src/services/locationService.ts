@@ -3,6 +3,11 @@ import { distanciaKm, isWithinRadius, type Coordenadas } from "@/src/utils/geo";
 
 export type { Coordenadas };
 
+export interface PosicaoAtual extends Coordenadas {
+  /** true quando o provider de localização do dispositivo está mockado (GPS falso) */
+  mocked: boolean;
+}
+
 const RAIO_PADRAO_KM = 30;
 
 async function pedirPermissao(): Promise<boolean> {
@@ -10,7 +15,7 @@ async function pedirPermissao(): Promise<boolean> {
   return status === "granted";
 }
 
-async function getCurrentPosition(): Promise<Coordenadas> {
+async function getCurrentPosition(): Promise<PosicaoAtual> {
   const concedida = await pedirPermissao();
   if (!concedida) {
     throw new Error("Permissão de localização negada.");
@@ -23,6 +28,7 @@ async function getCurrentPosition(): Promise<Coordenadas> {
   return {
     latitude: posicao.coords.latitude,
     longitude: posicao.coords.longitude,
+    mocked: posicao.mocked ?? false,
   };
 }
 

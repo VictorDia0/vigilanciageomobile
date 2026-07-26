@@ -67,6 +67,11 @@ export interface RegistrarImovelPayload {
   client_uuid?: string;
   /** paths retornados por visitaService.uploadFoto */
   fotos?: string[];
+  /** GPS capturado no momento do registro — usado pelo backend p/ detecção de anomalia */
+  latitude?: number;
+  longitude?: number;
+  /** true quando o provider de localização do dispositivo estava mockado */
+  mocked?: boolean;
 }
 
 // ─── Recuperação (imóveis fechados) ──────────────────────────────────────────

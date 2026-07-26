@@ -13,7 +13,7 @@ import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
 import { outbox } from "../db/outbox";
 import { isErroDeRede, sincronizarPendentes, totalPendentes } from "../services/sync";
-import { locationService } from "../services/locationService";
+import { locationService, type PosicaoAtual } from "../services/locationService";
 import { useAuthStore } from "../store/authStore";
 
 // ─── Steps do fluxo ───────────────────────────────────────────────────────────
@@ -233,8 +233,11 @@ export function useVisitas() {
     // Geolocalização é obrigatória e validada contra o raio de 30km da
     // cidade do agente antes de qualquer chamada — regra client-side, já
     // que o backend não valida localização para Visita (só para Ocorrência).
+    // lat/lng/mocked seguem no payload pro backend cruzar com o raio da
+    // quadra e a detecção de mock location (anti-fraude).
+    let posicao: PosicaoAtual;
     try {
-      const posicao = await locationService.getCurrentPosition();
+      posicao = await locationService.getCurrentPosition();
       const cidade = useAuthStore.getState().user?.cidade;
       if (cidade?.lat != null && cidade?.lng != null) {
         const dentroDoRaio = locationService.isWithinRadius(posicao, {
@@ -295,6 +298,9 @@ export function useVisitas() {
         ? parseInt(form.depositos_tratados) || null
         : null,
       fotos: fotosEnviadas.length > 0 ? fotosEnviadas : undefined,
+      latitude: posicao.latitude,
+      longitude: posicao.longitude,
+      mocked: posicao.mocked,
     };
 
     try {

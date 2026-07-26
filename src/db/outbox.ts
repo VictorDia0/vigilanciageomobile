@@ -29,6 +29,9 @@ export interface RegistrarImovelOffline {
     tratado: boolean;
     quantidade_larvicida: number | null;
     depositos_tratados: number | null;
+    latitude?: number;
+    longitude?: number;
+    mocked?: boolean;
   };
 }
 
