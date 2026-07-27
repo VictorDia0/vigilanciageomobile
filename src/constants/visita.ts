@@ -30,9 +30,14 @@ export function situacaoCfg(value: string | undefined | null): SituacaoConfig {
   );
 }
 
-/** Opções do form de registro (ordem de exibição). */
+/**
+ * Opções do form de registro normal (ordem de exibição). "Recuperado" fica
+ * de fora — só faz sentido numa revisita de imóvel fechado, e o backend
+ * rejeita se não houver visita fechada anterior; isso é feito pela tela de
+ * Recuperação (RESULTADOS_RECUPERACAO), que já lista só os elegíveis.
+ */
 export const SITUACOES_FORM: { value: SituacaoImovel; label: string; color: string }[] = (
-  ["N", "REC", "R", "F"] as SituacaoImovel[]
+  ["N", "R", "F"] as SituacaoImovel[]
 ).map((value) => ({ value, ...SITUACAO_CFG[value] }));
 
 /** Resultados possíveis de uma revisita de recuperação. */

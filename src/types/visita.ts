@@ -91,6 +91,9 @@ export interface RegistrarRecuperacaoPayload {
   tratado: boolean;
   quantidade_larvicida: number | null;
   depositos_tratados: number | null;
+  latitude?: number;
+  longitude?: number;
+  mocked?: boolean;
 }
 
 // (Estado de formulário local vive junto do hook que o usa: src/hooks/useVisitas.ts)

@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { Alert } from "react-native";
 import type {
   ModoInicio,
   QuadraResumo,
@@ -11,7 +12,7 @@ import type { Area } from "@/src/types/area";
 import type { Imovel } from "@/src/types/imovel";
 import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
-import { outbox } from "../db/outbox";
+import { outbox, type FecharVisitaOffline, type EncerrarQuadraOffline } from "../db/outbox";
 import { isErroDeRede, sincronizarPendentes, totalPendentes } from "../services/sync";
 import { locationService, type PosicaoAtual } from "../services/locationService";
 import { useAuthStore } from "../store/authStore";
@@ -47,6 +48,21 @@ export interface ImovelFormState {
   depositos_tratados: string;
   /** URIs locais (expo-image-picker) — enviadas via visitaService.uploadFoto ao salvar */
   fotos: string[];
+}
+
+/** Alerta (não bloqueia) quando o GPS foge do raio de 30km cadastrado da cidade. */
+function confirmarForaDoRaio(): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      "Fora do raio da cidade",
+      "Você está fora do raio de 30km cadastrado para esta cidade. Isso pode ser um endereço de cidade cadastrado errado. Confirma o registro mesmo assim?",
+      [
+        { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+        { text: "Confirmar mesmo assim", onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
 }
 
 const FORM_VAZIO: ImovelFormState = {
@@ -230,11 +246,12 @@ export function useVisitas() {
     setLoading(true);
     setError(null);
 
-    // Geolocalização é obrigatória e validada contra o raio de 30km da
-    // cidade do agente antes de qualquer chamada — regra client-side, já
-    // que o backend não valida localização para Visita (só para Ocorrência).
+    // Geolocalização é obrigatória. O raio de 30km da cidade é só um alerta
+    // client-side (as coordenadas cadastradas da cidade podem ser imprecisas)
+    // — não bloqueia mais o registro sem chance de confirmação, senão um erro
+    // de cadastro da cidade trava o agente em campo sem alternativa.
     // lat/lng/mocked seguem no payload pro backend cruzar com o raio da
-    // quadra e a detecção de mock location (anti-fraude).
+    // quadra e a detecção de mock location (anti-fraude de verdade).
     let posicao: PosicaoAtual;
     try {
       posicao = await locationService.getCurrentPosition();
@@ -245,15 +262,18 @@ export function useVisitas() {
           longitude: cidade.lng,
         });
         if (!dentroDoRaio) {
-          setError(
-            "Você está fora do raio de 30km da cidade. Não é possível registrar o imóvel deste local."
-          );
-          setLoading(false);
-          return;
+          const confirma = await confirmarForaDoRaio();
+          if (!confirma) {
+            setError("Registro cancelado — fora do raio da cidade.");
+            setLoading(false);
+            return;
+          }
         }
       }
-    } catch {
-      setError("Não foi possível obter sua localização. Verifique a permissão de GPS.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Não foi possível obter sua localização."
+      );
       setLoading(false);
       return;
     }
@@ -397,9 +417,21 @@ export function useVisitas() {
       setStep("selecionar_quadra");
       atualizarArea();
     } catch (err: any) {
-      setError(
-        err?.response?.data?.message ?? "Não foi possível encerrar o dia."
-      );
+      if (isErroDeRede(err)) {
+        // Sem sinal no fim do expediente: enfileira e deixa o agente ir
+        // embora — sincroniza quando a conexão voltar.
+        outbox.enqueue("fechar_visita", { visita_id: visitaAberta.id } satisfies FecharVisitaOffline);
+        setPendentesSync(totalPendentes());
+        setVisitaAberta(null);
+        setImoveis([]);
+        setQuadraSelecionada(null);
+        setSuccessMsg("Sem conexão — encerramento salvo no aparelho. Será sincronizado.");
+        setStep("selecionar_quadra");
+      } else {
+        setError(
+          err?.response?.data?.message ?? "Não foi possível encerrar o dia."
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -427,10 +459,23 @@ export function useVisitas() {
       setStep("selecionar_quadra");
       atualizarArea();
     } catch (err: any) {
-      setError(
-        err?.response?.data?.message ??
-        "Não foi possível encerrar o quarteirão."
-      );
+      if (isErroDeRede(err)) {
+        outbox.enqueue("encerrar_quadra", {
+          visita_id: visitaAberta?.id ?? null,
+          quadra_id: quadraSelecionada.id,
+        } satisfies EncerrarQuadraOffline);
+        setPendentesSync(totalPendentes());
+        setVisitaAberta(null);
+        setImoveis([]);
+        setQuadraSelecionada(null);
+        setSuccessMsg("Sem conexão — encerramento salvo no aparelho. Será sincronizado.");
+        setStep("selecionar_quadra");
+      } else {
+        setError(
+          err?.response?.data?.message ??
+          "Não foi possível encerrar o quarteirão."
+        );
+      }
     } finally {
       setLoading(false);
     }

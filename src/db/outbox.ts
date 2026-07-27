@@ -1,6 +1,10 @@
 import { getDb } from "./database";
 
-export type OutboxTipo = "registrar_imovel";
+export type OutboxTipo =
+  | "registrar_imovel"
+  | "fechar_visita"
+  | "encerrar_quadra"
+  | "registrar_recuperacao";
 
 export interface OutboxItem<T = any> {
   id: number;
@@ -25,6 +29,33 @@ export interface RegistrarImovelOffline {
   registro: {
     horario_visita: string;
     situacao: string;
+    focos_eliminados: number;
+    tratado: boolean;
+    quantidade_larvicida: number | null;
+    depositos_tratados: number | null;
+    latitude?: number;
+    longitude?: number;
+    mocked?: boolean;
+  };
+}
+
+/** Encerra a sessão do dia (quadra continua em_andamento) */
+export interface FecharVisitaOffline {
+  visita_id: number;
+}
+
+/** Fecha a sessão do dia (se houver) e marca a quadra como concluída (definitivo) */
+export interface EncerrarQuadraOffline {
+  visita_id: number | null;
+  quadra_id: number;
+}
+
+export interface RegistrarRecuperacaoOffline {
+  imovel_id: number;
+  payload: {
+    tratamento_id: number;
+    situacao: string;
+    horario_visita: string;
     focos_eliminados: number;
     tratado: boolean;
     quantidade_larvicida: number | null;

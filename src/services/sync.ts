@@ -1,5 +1,12 @@
-import { outbox, type RegistrarImovelOffline } from "../db/outbox";
+import {
+  outbox,
+  type RegistrarImovelOffline,
+  type FecharVisitaOffline,
+  type EncerrarQuadraOffline,
+  type RegistrarRecuperacaoOffline,
+} from "../db/outbox";
 import { visitaService } from "./visitaService";
+import { recuperacaoService } from "./recuperacaoService";
 
 export interface ResultadoSync {
   enviados: number;
@@ -35,6 +42,18 @@ export async function sincronizarPendentes(): Promise<ResultadoSync> {
           situacao: p.registro.situacao as any,
           client_uuid: item.client_uuid,
         });
+      } else if (item.tipo === "fechar_visita") {
+        const p = item.payload as FecharVisitaOffline;
+        await visitaService.fecharVisita(p.visita_id);
+      } else if (item.tipo === "encerrar_quadra") {
+        const p = item.payload as EncerrarQuadraOffline;
+        if (p.visita_id) {
+          await visitaService.fecharVisita(p.visita_id);
+        }
+        await visitaService.encerrarQuadra(p.quadra_id);
+      } else if (item.tipo === "registrar_recuperacao") {
+        const p = item.payload as RegistrarRecuperacaoOffline;
+        await recuperacaoService.registrar(p.imovel_id, p.payload as any);
       }
       outbox.remover(item.id);
       enviados++;

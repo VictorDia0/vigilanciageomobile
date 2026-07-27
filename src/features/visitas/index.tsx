@@ -26,6 +26,7 @@ export default function Visitas() {
     data: dashboard,
     fetch: fetchDashboard,
     loading: loadingDashboard,
+    error: errorDashboard,
   } = useDashboardAgente();
 
   useEffect(() => {
@@ -47,6 +48,18 @@ export default function Visitas() {
     return (
       <Screen centered>
         <LoadingView />
+      </Screen>
+    );
+  }
+
+  if (!tratamentoId && errorDashboard) {
+    return (
+      <Screen>
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Sem conexão"
+          subtitle="Não foi possível carregar os dados. Verifique sua internet e tente novamente."
+        />
       </Screen>
     );
   }
