@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { C } from "@/src/theme/tokens";
 import type { OcorrenciaStatus } from "@/src/types/ocorrencia";
+import type { SituacaoEncontrada } from "@/src/types/ocorrenciaAtendimento";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -62,3 +63,17 @@ export function tipoOcorrenciaCfg(tipo: string | null | undefined): {
   }
   return { label: "Outros", icon: "help-circle-outline" };
 }
+
+// ─── Situação encontrada no atendimento ──────────────────────────────────────
+
+export const SITUACAO_ENCONTRADA_CFG: Record<
+  SituacaoEncontrada,
+  { label: string; color: string; icon: IconName }
+> = {
+  confirmado:     { label: "Confirmado",     color: C.danger,  icon: "alert-circle-outline" },
+  nao_encontrado: { label: "Não encontrado", color: C.textSec, icon: "search-outline" },
+  falso_alarme:   { label: "Falso alarme",   color: C.success, icon: "close-circle-outline" },
+  encaminhado:    { label: "Encaminhado",    color: C.warning, icon: "arrow-redo-outline" },
+};
+
+export const SITUACOES_ENCONTRADAS = Object.keys(SITUACAO_ENCONTRADA_CFG) as SituacaoEncontrada[];

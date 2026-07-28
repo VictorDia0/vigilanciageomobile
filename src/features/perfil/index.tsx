@@ -9,13 +9,15 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { C } from "@/src/theme/tokens";
 import { Screen } from "@/src/components/ui";
 import { useAuthStore } from "@/src/store/authStore";
 import { ocorrenciaService } from "@/src/services/ocorrenciaService";
-import { sincronizarPendentes, totalPendentes } from "@/src/services/sync";
+import { sincronizarPendentes } from "@/src/services/sync";
+import { useSyncStore } from "@/src/store/syncStore";
 
 // ─── Componentes locais ───────────────────────────────────────────────────────
 
@@ -46,11 +48,6 @@ function MenuItem({ icon, label, value, onPress, color = C.text }: MenuItemProps
   );
 }
 
-// Páginas do menu ainda não implementadas → aviso amigável
-function emBreve() {
-  Alert.alert("Em breve", "Esta seção ainda está em desenvolvimento.");
-}
-
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 
 export default function Perfil() {
@@ -58,32 +55,50 @@ export default function Perfil() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [totalOcorrencias, setTotalOcorrencias] = useState<number | null>(null);
-  const [pendentes, setPendentes] = useState(0);
+  const pendentes = useSyncStore((s) => s.pendentes);
+  const comFalha = useSyncStore((s) => s.comFalha);
+  const ultimoErro = useSyncStore((s) => s.ultimoErro);
+  const refreshPendentes = useSyncStore((s) => s.refresh);
   const [sincronizando, setSincronizando] = useState(false);
 
   useEffect(() => {
-    setPendentes(totalPendentes());
-    if (!user?.id) return;
+    refreshPendentes();
+    if (!user?.agente?.id) return;
     ocorrenciaService
       .list()
       .then((lista) => {
-        setTotalOcorrencias(lista.filter((o) => o.agente_id === user.id).length);
+        // agente_id referencia agentes.id, não users.id — são IDs diferentes.
+        setTotalOcorrencias(lista.filter((o) => o.agente_id === user.agente!.id).length);
       })
       .catch(() => setTotalOcorrencias(null));
-  }, [user?.id]);
+  }, [user?.agente?.id, refreshPendentes]);
 
   const handleSincronizar = async () => {
     if (sincronizando) return;
     setSincronizando(true);
     try {
       const r = await sincronizarPendentes();
-      setPendentes(totalPendentes());
-      Alert.alert(
-        "Sincronização concluída",
-        r.enviados > 0
-          ? `${r.enviados} registro(s) enviado(s).`
-          : "Nada para sincronizar no momento."
-      );
+      refreshPendentes();
+      const erro = useSyncStore.getState().ultimoErro;
+      if (r.falhas > 0) {
+        Alert.alert(
+          "Alguns registros não foram enviados",
+          `${r.falhas} registro(s) foram recusados pelo servidor e continuam salvos no aparelho.${
+            erro ? `\n\nMotivo: ${erro}` : ""
+          }\n\nCorrija a causa (ex.: junto à coordenação) — a sincronização automática vai continuar tentando, mas não vai resolver sozinha.`,
+          [
+            { text: "Ver detalhes", onPress: () => router.push("/(app)/perfil/sync-erros") },
+            { text: "OK", style: "cancel" },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Sincronização concluída",
+          r.enviados > 0
+            ? `${r.enviados} registro(s) enviado(s).`
+            : "Nada para sincronizar no momento."
+        );
+      }
     } catch {
       Alert.alert("Erro", "Não foi possível sincronizar agora.");
     } finally {
@@ -97,8 +112,8 @@ export default function Perfil() {
       {
         text: "Sair",
         style: "destructive",
-        onPress: () => {
-          logout();
+        onPress: async () => {
+          await logout();
           router.replace("/(auth)");
         },
       },
@@ -110,20 +125,24 @@ export default function Perfil() {
   const email = user?.email ?? "usuario@email.com";
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header do perfil */}
         <View style={s.profileHeader}>
-          <View style={s.avatar}>
-            <Text style={s.avatarText}>
-              {primeiroNome.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          {user?.foto_perfil_url ? (
+            <Image source={{ uri: user.foto_perfil_url }} style={s.avatar} contentFit="cover" />
+          ) : (
+            <View style={s.avatar}>
+              <Text style={s.avatarText}>
+                {primeiroNome.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <Text style={s.userName}>{nomeCompleto}</Text>
-          <Text style={s.userCargo}>Agente de Campo</Text>
+          <Text style={s.userCargo}>Agente de Combate a Endemias</Text>
           <Text style={s.userEmail}>{email}</Text>
         </View>
 
@@ -159,18 +178,32 @@ export default function Perfil() {
             value={
               sincronizando
                 ? "Sincronizando..."
+                : comFalha > 0
+                ? `${comFalha} com erro`
                 : pendentes > 0
                 ? `${pendentes} pendente(s)`
                 : "Tudo em dia"
             }
-            color={pendentes > 0 ? C.warning : C.text}
+            color={comFalha > 0 ? C.danger : pendentes > 0 ? C.warning : C.text}
             onPress={handleSincronizar}
           />
+          {comFalha > 0 && (
+            <>
+              <View style={s.divider} />
+              <MenuItem
+                icon="alert-circle-outline"
+                label="Registros com erro"
+                value={`${comFalha}`}
+                color={C.danger}
+                onPress={() => router.push("/(app)/perfil/sync-erros")}
+              />
+            </>
+          )}
           <View style={s.divider} />
           <MenuItem
             icon="document-text-outline"
-            label="Relatórios"
-            onPress={() => router.push("/(app)/relatorios")}
+            label="Meus relatórios"
+            onPress={() => router.push("/(app)/perfil/relatorios")}
           />
           <View style={s.divider} />
           <MenuItem
@@ -179,25 +212,28 @@ export default function Perfil() {
             onPress={() => router.push("/(app)/perfil/senha")}
           />
           <View style={s.divider} />
-          <MenuItem icon="person-outline" label="Dados pessoais" onPress={emBreve} />
+          <MenuItem
+            icon="person-outline"
+            label="Dados pessoais"
+            onPress={() => router.push("/(app)/perfil/dados-pessoais")}
+          />
           <View style={s.divider} />
           <MenuItem
             icon="notifications-outline"
             label="Notificações"
-            value="Ativadas"
-            onPress={emBreve}
+            onPress={() => router.push("/(app)/perfil/notificacoes")}
           />
           <View style={s.divider} />
           <MenuItem
             icon="document-text-outline"
             label="Termos e privacidade"
-            onPress={emBreve}
+            onPress={() => router.push("/(app)/perfil/termos")}
           />
           <View style={s.divider} />
           <MenuItem
             icon="help-circle-outline"
             label="Ajuda e suporte"
-            onPress={emBreve}
+            onPress={() => router.push("/(app)/perfil/ajuda")}
           />
           <View style={s.divider} />
           <MenuItem
@@ -228,6 +264,7 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
+    overflow: "hidden",
   },
   avatarText: { fontSize: 40, fontWeight: "600", color: "#FFF" },
   userName:   { fontSize: 24, fontWeight: "700", color: C.text, marginBottom: 4 },

@@ -8,7 +8,7 @@ import type { StatusValor, LabeledField } from "./comum";
 // ─── Enums (espelham Laravel) ─────────────────────────────────────────────────
 export type SituacaoImovel = "N" | "R" | "REC" | "F";
 
-export type StatusVisita      = "aberta" | "fechada";
+export type StatusVisita      = "aberta" | "em_andamento" | "concluida" | "cancelada";
 
 /**
  * Como a quadra selecionada será aberta:

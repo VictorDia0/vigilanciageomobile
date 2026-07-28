@@ -49,7 +49,14 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "O VigiaGeo usa sua localização para registrar as coordenadas de imóveis e ocorrências durante as visitas de campo."
+          "locationWhenInUsePermission": "O SISVA usa sua localização para registrar as coordenadas de imóveis e ocorrências durante as visitas de campo."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O SISVA acessa suas fotos para você escolher uma foto de perfil.",
+          "cameraPermission": "O SISVA acessa a câmera para tirar sua foto de perfil."
         }
       ],
       "expo-secure-store"

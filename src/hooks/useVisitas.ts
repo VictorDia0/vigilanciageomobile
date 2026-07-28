@@ -13,9 +13,10 @@ import type { Imovel } from "@/src/types/imovel";
 import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
 import { outbox, type FecharVisitaOffline, type EncerrarQuadraOffline } from "../db/outbox";
-import { isErroDeRede, sincronizarPendentes, totalPendentes } from "../services/sync";
+import { isErroDeRede, sincronizarPendentes } from "../services/sync";
 import { locationService, type PosicaoAtual } from "../services/locationService";
 import { useAuthStore } from "../store/authStore";
+import { useSyncStore } from "../store/syncStore";
 
 // ─── Steps do fluxo ───────────────────────────────────────────────────────────
 //
@@ -98,7 +99,8 @@ export function useVisitas() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const [pendentesSync, setPendentesSync] = useState<number>(0);
+  const pendentesSync = useSyncStore((s) => s.pendentes);
+  const refreshPendentesSync = useSyncStore((s) => s.refresh);
 
   // Imóveis fechados (F) da quadra atual — vão para a recuperação
   const totalFechados = useMemo(
@@ -197,20 +199,15 @@ export function useVisitas() {
   );
 
   const atualizarArea = useCallback(async () => {
-    setAreaSelecionada((atual) => {
-      if (!atual) return atual;
-      api
-        .get(`/areas/${atual.id}`)
-        .then((res) => {
-          const dados = res.data?.data ?? res.data;
-          if (dados) setAreaSelecionada(dados);
-        })
-        .catch(() => {
-          /* silencioso — não bloqueia o fluxo */
-        });
-      return atual;
-    });
-  }, []);
+    if (!areaSelecionada) return;
+    try {
+      const res = await api.get(`/areas/${areaSelecionada.id}`);
+      const dados = res.data?.data ?? res.data;
+      if (dados) setAreaSelecionada(dados);
+    } catch {
+      /* silencioso — não bloqueia o fluxo */
+    }
+  }, [areaSelecionada]);
 
   // ─── Abrir formulário de novo imóvel ───────────────────────────────────────
 
@@ -366,7 +363,7 @@ export function useVisitas() {
           imovel: dadosImovel,
           registro: dadosRegistro,
         });
-        setPendentesSync(totalPendentes());
+        refreshPendentesSync();
         setImoveis((prev) => [
           ...prev,
           {
@@ -421,7 +418,7 @@ export function useVisitas() {
         // Sem sinal no fim do expediente: enfileira e deixa o agente ir
         // embora — sincroniza quando a conexão voltar.
         outbox.enqueue("fechar_visita", { visita_id: visitaAberta.id } satisfies FecharVisitaOffline);
-        setPendentesSync(totalPendentes());
+        refreshPendentesSync();
         setVisitaAberta(null);
         setImoveis([]);
         setQuadraSelecionada(null);
@@ -464,7 +461,7 @@ export function useVisitas() {
           visita_id: visitaAberta?.id ?? null,
           quadra_id: quadraSelecionada.id,
         } satisfies EncerrarQuadraOffline);
-        setPendentesSync(totalPendentes());
+        refreshPendentesSync();
         setVisitaAberta(null);
         setImoveis([]);
         setQuadraSelecionada(null);
@@ -485,7 +482,7 @@ export function useVisitas() {
 
   const sincronizar = useCallback(async () => {
     const r = await sincronizarPendentes();
-    setPendentesSync(totalPendentes());
+    refreshPendentesSync();
     if (r.enviados > 0) {
       setSuccessMsg(`${r.enviados} registro(s) sincronizado(s).`);
     }

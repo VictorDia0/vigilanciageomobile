@@ -65,7 +65,7 @@ export default function DetalhesImovel() {
   const cfg = situacaoCfg(sitVal || null);
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <PageHeader title="Detalhes do Imóvel" onBack={() => router.back()} />
 
       {loading ? (

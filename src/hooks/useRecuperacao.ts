@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import { recuperacaoService } from "../services/recuperacaoService";
 import { locationService, type PosicaoAtual } from "../services/locationService";
 import { outbox, type RegistrarRecuperacaoOffline } from "../db/outbox";
-import { isErroDeRede, totalPendentes } from "../services/sync";
+import { isErroDeRede } from "../services/sync";
+import { useSyncStore } from "../store/syncStore";
 import type {
   RecuperacaoPendente,
   RegistrarRecuperacaoPayload,
@@ -33,7 +34,8 @@ export function useRecuperacao(tratamentoId: number | null) {
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [pendentesSync, setPendentesSync] = useState<number>(0);
+  const pendentesSync = useSyncStore((s) => s.pendentes);
+  const refreshPendentesSync = useSyncStore((s) => s.refresh);
 
   const carregar = useCallback(async () => {
     if (!tratamentoId) return;
@@ -145,7 +147,7 @@ export function useRecuperacao(tratamentoId: number | null) {
             mocked: posicao.mocked,
           },
         } satisfies RegistrarRecuperacaoOffline);
-        setPendentesSync(totalPendentes());
+        refreshPendentesSync();
 
         marcarComoSalvo();
         setSuccessMsg("Sem conexão — revisita salva no aparelho. Será sincronizada.");

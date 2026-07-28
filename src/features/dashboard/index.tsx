@@ -9,6 +9,7 @@ import {
 import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/src/store/authStore";
@@ -18,6 +19,7 @@ import { MetricCard } from "./components/MetricCard";
 import { OcorrenciaItem } from "./components/OcorrenciaItem";
 import { TratamentoCard, TratamentoVazio } from "./components/TratamentoCard";
 import { AcoesRapidas } from "./components/AcoesRapidas";
+import { RankingAgentesCard } from "./components/RankingAgentesCard";
 import { s } from "./styles";
 
 export default function Dashboard() {
@@ -58,7 +60,7 @@ export default function Dashboard() {
             : (data.tratamento?.status ?? "em_andamento");
 
     return (
-        <View style={[s.root, { paddingTop: insets.top }]}>
+        <View style={s.root}>
             <StatusBar style="dark" />
             <ScrollView
                 contentContainerStyle={[
@@ -85,9 +87,17 @@ export default function Dashboard() {
                         style={s.avatar}
                         onPress={() => router.push("/(app)/perfil")}
                     >
-                        <Text style={s.avatarText}>
-                            {primeiroNome.charAt(0).toUpperCase()}
-                        </Text>
+                        {user?.foto_perfil_url ? (
+                            <Image
+                                source={{ uri: user.foto_perfil_url }}
+                                style={{ width: "100%", height: "100%" }}
+                                contentFit="cover"
+                            />
+                        ) : (
+                            <Text style={s.avatarText}>
+                                {primeiroNome.charAt(0).toUpperCase()}
+                            </Text>
+                        )}
                     </Pressable>
                 </View>
 
@@ -195,6 +205,9 @@ export default function Dashboard() {
 
                 {/* Ações rápidas */}
                 <AcoesRapidas />
+
+                {/* Ranking de agentes */}
+                <RankingAgentesCard />
 
                 {/* Erro */}
                 {!!error && (

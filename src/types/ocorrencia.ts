@@ -1,3 +1,5 @@
+import type { OcorrenciaAtendimento } from "./ocorrenciaAtendimento";
+
 export type OcorrenciaStatus = "pendente" | "andamento" | "resolvido" | "cancelado";
 export type OcorrenciaTipo = "dengue" | "escorpiao" | "entulho" | "caramujo" | "leishmaniose";
 
@@ -18,6 +20,7 @@ export interface Ocorrencia {
     id: number;
     nome: string;
   };
+  atendimento?: OcorrenciaAtendimento | null;
 }
 
 export interface OcorrenciasAgregadas {

@@ -9,6 +9,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  foto_perfil_url?: string | null;
   cidade_id?: number;
   cidade?: {
     id: number;
@@ -36,6 +37,7 @@ interface AuthState {
   logout: () => Promise<void>;
   setToken: (token: string | null) => void;
   setHydrated: () => void;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -91,6 +93,9 @@ export const useAuthStore = create<AuthState>()(
       setToken: (token) => set({ token }),
 
       setHydrated: () => set({ hydrated: true }),
+
+      updateUser: (patch) =>
+        set((s) => ({ user: s.user ? { ...s.user, ...patch } : s.user })),
     }),
     {
       name: "vigiageo-auth",

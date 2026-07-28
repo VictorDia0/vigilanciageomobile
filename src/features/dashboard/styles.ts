@@ -37,6 +37,7 @@ export const s = StyleSheet.create({
         backgroundColor: C.primary,
         alignItems: "center",
         justifyContent: "center",
+        overflow: "hidden",
     },
     avatarText: {
         fontSize: 20,

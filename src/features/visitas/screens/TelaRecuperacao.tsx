@@ -195,7 +195,7 @@ export default function TelaRecuperacao() {
   }, [tratamentoId, carregar]);
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <PageHeader
         title="Recuperação"
         subtitle="Imóveis fechados do tratamento atual"

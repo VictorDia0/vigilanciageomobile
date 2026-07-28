@@ -1,10 +1,12 @@
 import { getDb } from "./database";
+import type { AtenderOcorrenciaPayload } from "../types/ocorrenciaAtendimento";
 
 export type OutboxTipo =
   | "registrar_imovel"
   | "fechar_visita"
   | "encerrar_quadra"
-  | "registrar_recuperacao";
+  | "registrar_recuperacao"
+  | "atender_ocorrencia";
 
 export interface OutboxItem<T = any> {
   id: number;
@@ -66,6 +68,14 @@ export interface RegistrarRecuperacaoOffline {
   };
 }
 
+/** Fotos guardam a URI local — resolvida de novo (arquivo lido do
+ * aparelho) só na hora de sincronizar, não fica nada em memória parado. */
+export interface AtenderOcorrenciaOffline {
+  ocorrencia_id: number;
+  dados: AtenderOcorrenciaPayload;
+  fotos: { uri: string; name: string; type: string }[];
+}
+
 function uuid(): string {
   // suficiente p/ idempotência local — não precisa ser cripto-seguro
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -93,6 +103,32 @@ export const outbox = {
       "SELECT COUNT(*) as n FROM outbox"
     );
     return row?.n ?? 0;
+  },
+
+  /** Itens que já tentaram sincronizar pelo menos uma vez e falharam por erro
+   * de negócio (não é falta de rede — vai continuar falhando até alguém agir). */
+  comFalha(): number {
+    const row = getDb().getFirstSync<{ n: number }>(
+      "SELECT COUNT(*) as n FROM outbox WHERE tentativas > 0"
+    );
+    return row?.n ?? 0;
+  },
+
+  /** Mensagem do erro mais recente entre os itens com falha, pra diagnóstico. */
+  ultimoErro(): string | null {
+    const row = getDb().getFirstSync<{ ultimo_erro: string | null }>(
+      "SELECT ultimo_erro FROM outbox WHERE tentativas > 0 ORDER BY id ASC LIMIT 1"
+    );
+    return row?.ultimo_erro ?? null;
+  },
+
+  /** Itens que já falharam pelo menos uma vez — pra tela de gerenciamento
+   * manual (ver motivo, descartar o que não tem mais salvação). */
+  listarComFalha(): OutboxItem[] {
+    const rows = getDb().getAllSync<any>(
+      "SELECT * FROM outbox WHERE tentativas > 0 ORDER BY id ASC"
+    );
+    return rows.map((r) => ({ ...r, payload: JSON.parse(r.payload) }));
   },
 
   remover(id: number) {

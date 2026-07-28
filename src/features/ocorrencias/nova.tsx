@@ -158,7 +158,7 @@ export default function NovaOcorrencia() {
   };
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -353,8 +353,8 @@ const s = StyleSheet.create({
   // Tipo
   tipoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   tipoBtn: {
-    flex: 1,
-    minWidth: "22%",
+    flexGrow: 0,
+    flexBasis: "31%",
     alignItems: "center",
     gap: 6,
     paddingVertical: 12,

@@ -6,6 +6,7 @@ import {
   RefreshControl,
   StyleSheet,
   Pressable,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -77,7 +78,7 @@ export default function Areas() {
       : 0;
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 50 }]}
         showsVerticalScrollIndicator={false}
@@ -163,7 +164,15 @@ export default function Areas() {
             <Text style={s.emptySubtitle}>
               Você ainda não possui áreas vinculadas ao seu perfil.
             </Text>
-            <Pressable style={s.emptyBtn}>
+            <Pressable
+              style={s.emptyBtn}
+              onPress={() =>
+                Alert.alert(
+                  "Solicitar áreas",
+                  "Fale com a coordenação da vigilância pra receber áreas atribuídas ao seu usuário."
+                )
+              }
+            >
               <Text style={s.emptyBtnText}>Solicitar áreas</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFF" />
             </Pressable>

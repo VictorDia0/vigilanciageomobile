@@ -54,7 +54,7 @@ export default function Ocorrencias() {
   );
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <ScrollView
         contentContainerStyle={[s.scroll, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}

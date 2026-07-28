@@ -18,18 +18,19 @@ export function useOcorrenciasAgente() {
   });
 
   const fetch = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.agente?.id) return;
 
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const todas = await ocorrenciaService.list();
-      const minhas = todas.filter((o) => o.agente_id === user.id);
+      // agente_id referencia agentes.id, não users.id — são IDs diferentes.
+      const minhas = todas.filter((o) => o.agente_id === user.agente!.id);
 
       setState({ ocorrencias: minhas, loading: false, error: null });
     } catch {
       setState((prev) => ({ ...prev, loading: false, error: "Não foi possível carregar as ocorrências." }));
     }
-  }, [user?.id]);
+  }, [user?.agente?.id]);
 
   return { ...state, fetch };
 }

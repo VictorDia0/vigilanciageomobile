@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { C } from "@/src/theme/tokens";
 import { Screen, PageHeader, ErrorBanner, LoadingView } from "@/src/components/ui";
 import { ocorrenciaService } from "@/src/services/ocorrenciaService";
-import { ocorrenciaStatusCfg, tipoOcorrenciaCfg } from "@/src/constants/ocorrencia";
+import { ocorrenciaStatusCfg, tipoOcorrenciaCfg, SITUACAO_ENCONTRADA_CFG } from "@/src/constants/ocorrencia";
 import type { Ocorrencia } from "@/src/types/ocorrencia";
 
 function InfoRow({
@@ -35,14 +36,19 @@ export default function DetalhesOcorrencia() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    ocorrenciaService
-      .show(Number(id))
-      .then(setOcorrencia)
-      .catch(() => setError("Não foi possível carregar a ocorrência."))
-      .finally(() => setLoading(false));
-  }, [id]);
+  // Refaz a busca sempre que a tela ganha foco — necessário pra refletir a
+  // ocorrência recém-resolvida ao voltar da tela de atendimento.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      setLoading(true);
+      ocorrenciaService
+        .show(Number(id))
+        .then(setOcorrencia)
+        .catch(() => setError("Não foi possível carregar a ocorrência."))
+        .finally(() => setLoading(false));
+    }, [id])
+  );
 
   const status = ocorrenciaStatusCfg(ocorrencia?.status);
   const tipo = tipoOcorrenciaCfg(ocorrencia?.tipo);
@@ -55,8 +61,11 @@ export default function DetalhesOcorrencia() {
       })
     : null;
 
+  const atendimento = ocorrencia?.atendimento;
+  const situacaoCfg = atendimento ? SITUACAO_ENCONTRADA_CFG[atendimento.situacao_encontrada] : null;
+
   return (
-    <Screen>
+    <Screen topInset={false}>
       <PageHeader title="Detalhes da Ocorrência" onBack={() => router.back()} />
 
       {loading ? (
@@ -95,6 +104,48 @@ export default function DetalhesOcorrencia() {
               />
             )}
           </View>
+
+          {atendimento ? (
+            <View style={s.card}>
+              <Text style={s.atendimentoTitulo}>Atendimento registrado</Text>
+
+              {situacaoCfg && (
+                <View style={s.situacaoBadge}>
+                  <Ionicons name={situacaoCfg.icon} size={14} color={situacaoCfg.color} />
+                  <Text style={[s.situacaoBadgeText, { color: situacaoCfg.color }]}>
+                    {situacaoCfg.label}
+                  </Text>
+                </View>
+              )}
+
+              <InfoRow icon="location-outline" label="Endereço confirmado" value={atendimento.endereco_confirmado} />
+              {!!atendimento.nome_morador && (
+                <InfoRow icon="person-outline" label="Morador" value={atendimento.nome_morador} />
+              )}
+              {!!atendimento.telefone_contato && (
+                <InfoRow icon="call-outline" label="Telefone" value={atendimento.telefone_contato} />
+              )}
+              {!!atendimento.descricao && (
+                <InfoRow icon="document-text-outline" label="Descrição do atendimento" value={atendimento.descricao} />
+              )}
+
+              {!!atendimento.fotos?.length && (
+                <View style={s.fotosRow}>
+                  {atendimento.fotos.map((path) => (
+                    <Image key={path} source={{ uri: path }} style={s.fotoThumb} />
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : ocorrencia.status !== "resolvido" ? (
+            <Pressable
+              style={s.btnAtender}
+              onPress={() => router.push(`/(app)/ocorrencias/atender?id=${ocorrencia.id}`)}
+            >
+              <Ionicons name="clipboard-outline" size={20} color="#FFF" />
+              <Text style={s.btnAtenderText}>Iniciar visita da ocorrência</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </Screen>
@@ -124,4 +175,30 @@ const s = StyleSheet.create({
   infoRow: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
   infoLabel: { fontSize: 11, fontWeight: "600", color: C.textMut, letterSpacing: 0.5 },
   infoValue: { fontSize: 14, color: C.text, marginTop: 2, lineHeight: 20 },
+
+  btnAtender: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: C.primary,
+    paddingVertical: 16,
+    borderRadius: 14,
+  },
+  btnAtenderText: { fontSize: 15, fontWeight: "700", color: "#FFF" },
+
+  atendimentoTitulo: { fontSize: 15, fontWeight: "700", color: C.text },
+  situacaoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: C.background,
+  },
+  situacaoBadgeText: { fontSize: 12, fontWeight: "600" },
+  fotosRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  fotoThumb: { width: 64, height: 64, borderRadius: 10 },
 });

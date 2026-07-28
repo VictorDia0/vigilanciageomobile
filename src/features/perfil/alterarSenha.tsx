@@ -54,7 +54,7 @@ export default function AlterarSenha() {
   };
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <PageHeader title="Alterar senha" onBack={() => router.back()} />
 

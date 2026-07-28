@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { C } from "@/src/theme/tokens";
 import { Screen, PageHeader, ErrorBanner, EmptyState, StatusPill } from "@/src/components/ui";
 import { relatorioService } from "@/src/services/relatorioService";
+import { useAuthStore } from "@/src/store/authStore";
 import type {
   Relatorio,
   RelatorioFormato,
@@ -31,7 +31,7 @@ const STATUS_CFG: Record<Relatorio["status"], { label: string; color: string }> 
 };
 
 export default function Relatorios() {
-  const router = useRouter();
+  const { user } = useAuthStore();
   const [tipo, setTipo] = useState<RelatorioTipo>("ocorrencias");
   const [formato, setFormato] = useState<RelatorioFormato>("pdf");
   const [gerando, setGerando] = useState(false);
@@ -44,14 +44,23 @@ export default function Relatorios() {
   const carregar = useCallback(async () => {
     try {
       const lista = await relatorioService.listar();
-      setRelatorios(lista);
+      // Defesa em profundidade: só exibe relatórios do próprio agente,
+      // mesmo que o backend algum dia devolva a lista sem filtrar.
+      const meus = user?.id
+        ? lista.filter((r) => !r.geradoPor || r.geradoPor.id === user.id)
+        : lista;
+      setRelatorios(meus);
       setError(null);
-    } catch {
-      setError("Não foi possível carregar os relatórios.");
+    } catch (err: any) {
+      setError(
+        err?.response
+          ? `Não foi possível carregar os relatórios (erro ${err.response.status}).`
+          : "Sem conexão. Verifique sua internet e tente novamente."
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     carregar();
@@ -77,7 +86,7 @@ export default function Relatorios() {
   const gerar = async () => {
     setGerando(true);
     try {
-      await relatorioService.gerar({ tipo, formato });
+      await relatorioService.gerar({ tipo, formato, agente_id: user?.agente?.id ?? null });
       await carregar();
     } catch (err: any) {
       Alert.alert("Erro", err?.response?.data?.message ?? "Não foi possível gerar o relatório.");
@@ -98,9 +107,9 @@ export default function Relatorios() {
   };
 
   return (
-    <Screen>
+    <Screen topInset={false}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <PageHeader title="Relatórios" onBack={() => router.back()} />
+        <PageHeader title="Relatórios" subtitle="Solicite um relatório e acompanhe o histórico." />
 
         {/* Formulário de geração */}
         <View style={s.card}>

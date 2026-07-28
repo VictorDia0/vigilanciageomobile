@@ -21,6 +21,7 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/src/store/authStore";
 import { shouldRedirectToLogin } from "@/src/utils/authGuard";
 import { useInactivityLogout } from "@/src/hooks/useInactivityLogout";
@@ -125,16 +126,17 @@ function TabIcon({
 // ─── Layout ──────────────────────────────────────────────────────────────────
 export default function AppLayout() {
   const { authenticated, hydrated } = useAuthStore();
+  const insets = useSafeAreaInsets();
   useInactivityLogout();
-  const { online, pendentes } = useNetworkSync();
+  const { online, pendentes, comFalha } = useNetworkSync();
 
   if (shouldRedirectToLogin(hydrated, authenticated)) {
     return <Redirect href="/(auth)" />;
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <OfflineBanner online={online} pendentes={pendentes} />
+    <View style={{ flex: 1, paddingTop: insets.top }}>
+      <OfflineBanner online={online} pendentes={pendentes} comFalha={comFalha} />
       <Tabs
         screenOptions={{
           headerShown: false,

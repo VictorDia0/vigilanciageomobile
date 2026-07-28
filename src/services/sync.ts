@@ -4,9 +4,11 @@ import {
   type FecharVisitaOffline,
   type EncerrarQuadraOffline,
   type RegistrarRecuperacaoOffline,
+  type AtenderOcorrenciaOffline,
 } from "../db/outbox";
 import { visitaService } from "./visitaService";
 import { recuperacaoService } from "./recuperacaoService";
+import { ocorrenciaService } from "./ocorrenciaService";
 
 export interface ResultadoSync {
   enviados: number;
@@ -18,11 +20,26 @@ export function isErroDeRede(err: any): boolean {
   return !!err && !err.response;
 }
 
+let sincronizando: Promise<ResultadoSync> | null = null;
+
 /**
  * Reprocessa a fila offline em ordem de criação.
  * Chamar: ao abrir o app, ao voltar a conexão e no botão "Sincronizar".
+ *
+ * Reentrante: o gatilho do NetInfo (reconexão) e o botão manual do Perfil
+ * podem disparar ao mesmo tempo — se já houver uma sincronização em
+ * andamento, reaproveita a mesma promise em vez de reprocessar a fila em
+ * paralelo (o que duplicaria envios).
  */
-export async function sincronizarPendentes(): Promise<ResultadoSync> {
+export function sincronizarPendentes(): Promise<ResultadoSync> {
+  if (sincronizando) return sincronizando;
+  sincronizando = executarSincronizacao().finally(() => {
+    sincronizando = null;
+  });
+  return sincronizando;
+}
+
+async function executarSincronizacao(): Promise<ResultadoSync> {
   const itens = outbox.pendentes();
   let enviados = 0;
   let falhas = 0;
@@ -54,6 +71,9 @@ export async function sincronizarPendentes(): Promise<ResultadoSync> {
       } else if (item.tipo === "registrar_recuperacao") {
         const p = item.payload as RegistrarRecuperacaoOffline;
         await recuperacaoService.registrar(p.imovel_id, p.payload as any);
+      } else if (item.tipo === "atender_ocorrencia") {
+        const p = item.payload as AtenderOcorrenciaOffline;
+        await ocorrenciaService.atender(p.ocorrencia_id, p.dados, p.fotos);
       }
       outbox.remover(item.id);
       enviados++;

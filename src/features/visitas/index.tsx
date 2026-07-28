@@ -46,7 +46,7 @@ export default function Visitas() {
 
   if (loadingDashboard) {
     return (
-      <Screen centered>
+      <Screen centered topInset={false}>
         <LoadingView />
       </Screen>
     );
@@ -54,7 +54,7 @@ export default function Visitas() {
 
   if (!tratamentoId && errorDashboard) {
     return (
-      <Screen>
+      <Screen topInset={false}>
         <EmptyState
           icon="cloud-offline-outline"
           title="Sem conexão"
@@ -66,7 +66,7 @@ export default function Visitas() {
 
   if (!tratamentoId) {
     return (
-      <Screen>
+      <Screen topInset={false}>
         <EmptyState
           icon="medical-outline"
           title="Nenhum tratamento ativo"
@@ -78,7 +78,7 @@ export default function Visitas() {
 
   return (
     <VisitasContext.Provider value={{ ...hook, tratamentoId }}>
-      <Screen>
+      <Screen topInset={false}>
         {hook.step === "selecionar_area" && (
           <TelaAreas areas={areas} loading={loadingAreas} error={errorAreas} />
         )}
