@@ -11,7 +11,7 @@ interface Props {
 
 export function MetricCard({ title, value, icon, color }: Props) {
     return (
-        <View style={s.card}>
+        <View style={s.card} accessible accessibilityLabel={`${title}: ${value}`}>
             <View style={[s.icon, { backgroundColor: color + "18" }]}>
                 <Ionicons name={icon} size={20} color={color} />
             </View>

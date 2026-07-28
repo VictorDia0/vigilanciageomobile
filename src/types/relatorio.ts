@@ -20,7 +20,11 @@ export interface GerarRelatorioPayload {
   data_inicio?: string | null;
   data_fim?: string | null;
   ano?: number | null;
+  numero?: number | null;
+  area_id?: number | null;
   tipo_ocorrencia?: string | null;
   status?: string | null;
+  /** Situação do imóvel na visita: N (normal), R (recusa), REC (recuperado), F (fechado) */
+  situacao?: string | null;
   agente_id?: number | null;
 }

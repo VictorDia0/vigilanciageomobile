@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { C } from "../tokens";
 
@@ -32,7 +33,12 @@ export function AcoesRapidas() {
                 <Pressable
                     key={acao.label}
                     style={s.btn}
-                    onPress={() => router.push(acao.href as any)}
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push(acao.href as any);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={acao.label}
                 >
                     <Ionicons name={acao.icon} size={24} color={acao.color} />
                     <Text style={s.label}>{acao.label}</Text>

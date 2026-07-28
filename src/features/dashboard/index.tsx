@@ -86,6 +86,8 @@ export default function Dashboard() {
                     <Pressable
                         style={s.avatar}
                         onPress={() => router.push("/(app)/perfil")}
+                        accessibilityRole="button"
+                        accessibilityLabel="Abrir perfil"
                     >
                         {user?.foto_perfil_url ? (
                             <Image
@@ -143,7 +145,7 @@ export default function Dashboard() {
 
                 {/* Progresso das quadras */}
                 <View style={s.card}>
-                    <Text style={s.sectionTitle}>Progresso das quadras</Text>
+                    <Text style={s.sectionTitle} accessibilityRole="header">Progresso das quadras</Text>
                     <View style={s.progressContainer}>
                         <View style={s.progressCircle}>
                             <Text style={s.progressCircleValue}>{progressoQuadras}%</Text>
@@ -166,7 +168,12 @@ export default function Dashboard() {
                                     color: C.textMuted,
                                 },
                             ].map((item) => (
-                                <View key={item.label} style={s.progressStat}>
+                                <View
+                                    key={item.label}
+                                    style={s.progressStat}
+                                    accessible
+                                    accessibilityLabel={`${item.label}: ${item.value}`}
+                                >
                                     <View style={[s.dot, { backgroundColor: item.color }]} />
                                     <Text style={s.progressStatLabel}>{item.label}</Text>
                                     <Text style={s.progressStatValue}>{item.value}</Text>
@@ -179,13 +186,22 @@ export default function Dashboard() {
                 {/* Ocorrências recentes */}
                 <View style={s.card}>
                     <View style={s.sectionHeader}>
-                        <Text style={s.sectionTitle}>Ocorrências recentes</Text>
-                        <Pressable onPress={() => router.push("/(app)/ocorrencias")}>
+                        <Text style={s.sectionTitle} accessibilityRole="header">Ocorrências recentes</Text>
+                        <Pressable
+                            onPress={() => router.push("/(app)/ocorrencias")}
+                            accessibilityRole="link"
+                            accessibilityLabel="Ver todas as ocorrências"
+                            hitSlop={8}
+                        >
                             <Text style={s.sectionLink}>Ver todas</Text>
                         </Pressable>
                     </View>
                     {data.ocorrencias.lista.length === 0 ? (
-                        <View style={s.emptyState}>
+                        <View
+                            style={s.emptyState}
+                            accessible
+                            accessibilityLabel="Nenhuma ocorrência recente"
+                        >
                             <Ionicons
                                 name="checkmark-circle-outline"
                                 size={36}
@@ -211,7 +227,12 @@ export default function Dashboard() {
 
                 {/* Erro */}
                 {!!error && (
-                    <View style={s.errorBanner}>
+                    <View
+                        style={s.errorBanner}
+                        accessible
+                        accessibilityRole="alert"
+                        accessibilityLabel={error}
+                    >
                         <Ionicons name="warning-outline" size={16} color={C.danger} />
                         <Text style={s.errorText}>{error}</Text>
                     </View>

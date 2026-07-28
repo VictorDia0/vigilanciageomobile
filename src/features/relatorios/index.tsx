@@ -1,27 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { C } from "@/src/theme/tokens";
-import { Screen, PageHeader, ErrorBanner, EmptyState, StatusPill } from "@/src/components/ui";
+import { Screen, PageHeader, ErrorBanner, EmptyState, StatusPill, SelectField } from "@/src/components/ui";
 import { relatorioService } from "@/src/services/relatorioService";
 import { useAuthStore } from "@/src/store/authStore";
+import { useAreasAgente } from "@/src/hooks/useAreasAgente";
+import { FiltrosRelatorio, FILTROS_VAZIOS, type FiltrosState } from "./components/FiltrosRelatorio";
 import type {
   Relatorio,
   RelatorioFormato,
   RelatorioTipo,
 } from "@/src/types/relatorio";
 
-const TIPOS: { value: RelatorioTipo; label: string }[] = [
-  { value: "ocorrencias", label: "Ocorrências" },
-  { value: "tratamentos", label: "Tratamentos" },
-  { value: "visitas", label: "Visitas" },
-  { value: "depositos", label: "Depósitos" },
+/** "DD/MM/AAAA" -> "AAAA-MM-DD", ou null se vazio/inválido. */
+function paraISO(dataBr: string): string | null {
+  if (!dataBr.trim()) return null;
+  const m = dataBr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+const TIPOS: { value: RelatorioTipo; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: "ocorrencias", label: "Ocorrências", icon: "alert-circle-outline" },
+  { value: "tratamentos", label: "Tratamentos", icon: "flask-outline" },
+  { value: "visitas", label: "Visitas", icon: "compass-outline" },
+  { value: "depositos", label: "Depósitos", icon: "water-outline" },
 ];
 
-const FORMATOS: { value: RelatorioFormato; label: string }[] = [
-  { value: "pdf", label: "PDF" },
-  { value: "xlsx", label: "Excel" },
-  { value: "csv", label: "CSV" },
+const FORMATOS: { value: RelatorioFormato; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: "pdf", label: "PDF", icon: "document-outline" },
+  { value: "xlsx", label: "Excel", icon: "grid-outline" },
+  { value: "csv", label: "CSV", icon: "list-outline" },
 ];
 
 const STATUS_CFG: Record<Relatorio["status"], { label: string; color: string }> = {
@@ -32,14 +44,23 @@ const STATUS_CFG: Record<Relatorio["status"], { label: string; color: string }> 
 
 export default function Relatorios() {
   const { user } = useAuthStore();
+  const { areas, fetch: fetchAreas } = useAreasAgente();
   const [tipo, setTipo] = useState<RelatorioTipo>("ocorrencias");
   const [formato, setFormato] = useState<RelatorioFormato>("pdf");
+  const [filtros, setFiltros] = useState<FiltrosState>(FILTROS_VAZIOS);
   const [gerando, setGerando] = useState(false);
   const [relatorios, setRelatorios] = useState<Relatorio[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [baixandoId, setBaixandoId] = useState<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    fetchAreas();
+  }, [fetchAreas]);
+
+  const atualizarFiltros = (patch: Partial<FiltrosState>) =>
+    setFiltros((prev) => ({ ...prev, ...patch }));
 
   const carregar = useCallback(async () => {
     try {
@@ -84,10 +105,35 @@ export default function Relatorios() {
   }, [relatorios, carregar]);
 
   const gerar = async () => {
+    const precisaPeriodo = tipo === "ocorrencias" || tipo === "visitas" || tipo === "depositos";
+    const dataInicio = paraISO(filtros.dataInicio);
+    const dataFim = paraISO(filtros.dataFim);
+    if (precisaPeriodo && (filtros.dataInicio.trim() || filtros.dataFim.trim()) && (!dataInicio || !dataFim)) {
+      Alert.alert("Data inválida", "Use o formato DD/MM/AAAA nos dois campos de período.");
+      return;
+    }
+
     setGerando(true);
     try {
-      await relatorioService.gerar({ tipo, formato, agente_id: user?.agente?.id ?? null });
+      await relatorioService.gerar({
+        tipo,
+        formato,
+        agente_id: user?.agente?.id ?? null,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        tipo_ocorrencia: tipo === "ocorrencias" ? filtros.tipoOcorrencia : null,
+        status: tipo === "ocorrencias" ? filtros.status : null,
+        area_id: tipo !== "ocorrencias" ? filtros.areaId : null,
+        situacao: tipo === "visitas" ? filtros.situacao : null,
+        ano: tipo === "tratamentos" ? parseInt(filtros.ano, 10) || new Date().getFullYear() : null,
+        numero:
+          tipo === "tratamentos" || tipo === "depositos"
+            ? parseInt(filtros.numero, 10) || null
+            : null,
+      });
       await carregar();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Relatório solicitado", "Acompanhe o status no histórico abaixo.");
     } catch (err: any) {
       Alert.alert("Erro", err?.response?.data?.message ?? "Não foi possível gerar o relatório.");
     } finally {
@@ -113,31 +159,23 @@ export default function Relatorios() {
 
         {/* Formulário de geração */}
         <View style={s.card}>
-          <Text style={s.label}>TIPO</Text>
-          <View style={s.chipRow}>
-            {TIPOS.map((t) => (
-              <Pressable
-                key={t.value}
-                style={[s.chip, tipo === t.value && s.chipActive]}
-                onPress={() => setTipo(t.value)}
-              >
-                <Text style={[s.chipText, tipo === t.value && s.chipTextActive]}>{t.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <Text style={s.cardTitle}>Solicitar relatório</Text>
 
-          <Text style={s.label}>FORMATO</Text>
-          <View style={s.chipRow}>
-            {FORMATOS.map((f) => (
-              <Pressable
-                key={f.value}
-                style={[s.chip, formato === f.value && s.chipActive]}
-                onPress={() => setFormato(f.value)}
-              >
-                <Text style={[s.chipText, formato === f.value && s.chipTextActive]}>{f.label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <SelectField
+            label="TIPO"
+            value={tipo}
+            options={TIPOS}
+            onChange={(v) => {
+              setTipo(v);
+              setFiltros(FILTROS_VAZIOS);
+            }}
+          />
+
+          <SelectField label="FORMATO" value={formato} options={FORMATOS} onChange={setFormato} />
+
+          <View style={s.divider} />
+
+          <FiltrosRelatorio tipo={tipo} filtros={filtros} onChange={atualizarFiltros} areas={areas} />
 
           <Pressable style={[s.btnGerar, gerando && s.btnDisabled]} onPress={gerar} disabled={gerando}>
             {gerando ? (
@@ -201,28 +239,17 @@ export default function Relatorios() {
 }
 
 const s = StyleSheet.create({
-  scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40, gap: 20 },
+  scroll: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 100, gap: 20 },
   card: {
     backgroundColor: C.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: C.border,
     padding: 16,
-    gap: 10,
+    gap: 16,
   },
-  label: { fontSize: 11, fontWeight: "600", color: C.textMut, letterSpacing: 1, marginTop: 4 },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.bg,
-  },
-  chipActive: { borderColor: C.primary, backgroundColor: C.primary + "10" },
-  chipText: { fontSize: 13, color: C.textSec },
-  chipTextActive: { color: C.primary, fontWeight: "600" },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: C.text, marginBottom: 4 },
+  divider: { height: 1, backgroundColor: C.border, marginVertical: 4 },
   btnGerar: {
     flexDirection: "row",
     alignItems: "center",

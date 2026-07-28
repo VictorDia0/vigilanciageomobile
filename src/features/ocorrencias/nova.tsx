@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { C } from "@/src/theme/tokens";
-import { Screen } from "@/src/components/ui";
+import { Screen, SelectField } from "@/src/components/ui";
 import { TIPOS, TIPO_NOMES, TIPO_ICONES, TIPO_CORES } from "@/src/constants/ocorrencia";
 import type { OcorrenciaTipo } from "@/src/types/ocorrencia";
 import { ocorrenciaService } from "@/src/services/ocorrenciaService";
@@ -181,41 +181,17 @@ export default function NovaOcorrencia() {
           {/* Tipo */}
           <View style={s.section}>
             <Text style={s.sectionTitle}>Tipo de Ocorrência</Text>
-            <View style={s.tipoGrid}>
-              {(TIPOS as OcorrenciaTipo[]).map((tipo) => {
-                const ativo = form.tipo === tipo;
-                const cor = TIPO_CORES[tipo];
-                return (
-                  <Pressable
-                    key={tipo}
-                    style={[
-                      s.tipoBtn,
-                      { borderColor: ativo ? cor : C.border },
-                      ativo && s.tipoBtnActive,
-                    ]}
-                    onPress={() => set("tipo", tipo)}
-                  >
-                    <View
-                      style={[
-                        s.tipoIcon,
-                        { backgroundColor: ativo ? cor + "15" : C.background },
-                      ]}
-                    >
-                      <Ionicons
-                        name={TIPO_ICONES[tipo]}
-                        size={22}
-                        color={ativo ? cor : C.textMut}
-                      />
-                    </View>
-                    <Text
-                      style={[s.tipoLabel, ativo && { color: cor, fontWeight: "600" }]}
-                    >
-                      {TIPO_NOMES[tipo]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <SelectField
+              label="TIPO"
+              value={form.tipo}
+              onChange={(v) => set("tipo", v)}
+              options={(TIPOS as OcorrenciaTipo[]).map((tipo) => ({
+                value: tipo,
+                label: TIPO_NOMES[tipo],
+                icon: TIPO_ICONES[tipo],
+                color: TIPO_CORES[tipo],
+              }))}
+            />
           </View>
 
           {/* Detalhes */}
@@ -349,29 +325,6 @@ const s = StyleSheet.create({
   inputIcon:      { marginRight: 10 },
   input:          { flex: 1, fontSize: 15, color: C.text, paddingVertical: 10 },
   inputMultiline: { minHeight: 80, textAlignVertical: "top" },
-
-  // Tipo
-  tipoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  tipoBtn: {
-    flexGrow: 0,
-    flexBasis: "31%",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    borderWidth: 2,
-    backgroundColor: C.surface,
-  },
-  tipoBtnActive: { backgroundColor: C.primary + "05" },
-  tipoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tipoLabel: { fontSize: 11, color: C.textSec, textAlign: "center" },
 
   // Submit
   submitBtn: {

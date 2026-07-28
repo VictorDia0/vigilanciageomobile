@@ -16,8 +16,12 @@ export function TratamentoCard({ tratamento, status }: Props) {
         )
         : 0;
 
+    const rotulo = tratamento.total_areas != null
+        ? `${tratamento.numero}º Tratamento, ${status}, ${progresso}% concluído, ${tratamento.areas_concluidas ?? 0} de ${tratamento.total_areas} áreas`
+        : `${tratamento.numero}º Tratamento, ${status}`;
+
     return (
-        <View style={s.card}>
+        <View style={s.card} accessible accessibilityLabel={rotulo}>
             <View style={s.header}>
                 <Text style={s.numero}>{tratamento.numero}° Tratamento</Text>
                 <StatusBadge status={status} />
@@ -52,7 +56,7 @@ export function TratamentoCard({ tratamento, status }: Props) {
 
 export function TratamentoVazio() {
     return (
-        <View style={[s.card, s.empty]}>
+        <View style={[s.card, s.empty]} accessible accessibilityLabel="Nenhum tratamento ativo">
             <Ionicons name="medical-outline" size={40} color={C.textMuted} />
             <Text style={s.emptyText}>Nenhum tratamento ativo</Text>
         </View>

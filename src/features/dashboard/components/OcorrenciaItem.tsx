@@ -7,9 +7,17 @@ import type { Ocorrencia } from "@/src/types/ocorrencia";
 
 export function OcorrenciaItem({ oc }: { oc: Ocorrencia }) {
     const color = ocorrenciaStatusCfg(oc.status).color;
+    const statusLabel = ocorrenciaStatusCfg(oc.status).label;
+    const tipoLabel = tipoOcorrenciaCfg(oc.tipo).label;
+    const dataLabel = oc.data_ocorrencia
+        ? new Date(oc.data_ocorrencia).toLocaleDateString("pt-BR")
+        : null;
+    const rotulo = [tipoLabel, oc.endereco, dataLabel, `status ${statusLabel}`]
+        .filter(Boolean)
+        .join(", ");
 
     return (
-        <View style={s.row}>
+        <View style={s.row} accessible accessibilityLabel={rotulo}>
             <View style={[s.icon, { backgroundColor: color + "18" }]}>
                 <Ionicons name="alert-circle-outline" size={18} color={color} />
             </View>

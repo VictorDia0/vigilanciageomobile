@@ -14,8 +14,11 @@ function CardAgente({ item }: { item: RankingAgenteItem }) {
   const medalha = MEDALHA[item.posicao];
   const primeiroNome = item.nome.split(" ")[0];
 
+  const nomeExibido = item.souEu ? "Você" : primeiroNome;
+  const rotulo = `${nomeExibido}, ${item.posicao}º lugar, ${item.totalOcorrencias} ocorrências`;
+
   return (
-    <View style={[s.card, item.souEu && s.cardSouEu]}>
+    <View style={[s.card, item.souEu && s.cardSouEu]} accessible accessibilityLabel={rotulo}>
       <View style={[s.badge, { backgroundColor: (medalha?.cor ?? C.textMuted) + "18" }]}>
         {medalha ? (
           <Ionicons name={medalha.icon} size={16} color={medalha.cor} />
@@ -42,7 +45,7 @@ export function RankingAgentesCard() {
   if (loading) {
     return (
       <View style={s.container}>
-        <Text style={s.sectionTitle}>Ranking de agentes</Text>
+        <Text style={s.sectionTitle} accessibilityRole="header">Ranking de agentes</Text>
         <ActivityIndicator color={C.primary} style={{ paddingVertical: 12 }} />
       </View>
     );
@@ -51,7 +54,7 @@ export function RankingAgentesCard() {
   if (error) {
     return (
       <View style={s.container}>
-        <Text style={s.sectionTitle}>Ranking de agentes</Text>
+        <Text style={s.sectionTitle} accessibilityRole="header">Ranking de agentes</Text>
         <Text style={s.erro}>{error}</Text>
       </View>
     );
@@ -61,7 +64,7 @@ export function RankingAgentesCard() {
 
   return (
     <View style={s.container}>
-      <Text style={s.sectionTitle}>Ranking de agentes</Text>
+      <Text style={s.sectionTitle} accessibilityRole="header">Ranking de agentes</Text>
       <Text style={s.subtitle}>Por volume de ocorrências atendidas</Text>
       <View style={s.row}>
         {exibidos.map((item) => (

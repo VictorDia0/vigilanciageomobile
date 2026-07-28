@@ -6,3 +6,4 @@ export { EmptyState } from "./EmptyState";
 export { LoadingView } from "./LoadingView";
 export { SearchInput } from "./SearchInput";
 export { OfflineBanner } from "./OfflineBanner";
+export { SelectField, type SelectOption } from "./SelectField";
