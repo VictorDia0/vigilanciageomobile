@@ -4,7 +4,7 @@ import { resolveBaseUrl } from "./env";
 import { secureStorage } from "./secureStorage";
 import { handleUnauthorized } from "./unauthorizedHandler";
 
-const BASE_URL = resolveBaseUrl(process.env);
+const BASE_URL = resolveBaseUrl();
 
 export const api = axios.create({
   baseURL: BASE_URL,

@@ -1,11 +1,9 @@
-export function resolveBaseUrl(
-  env: Record<string, string | undefined>
-): string {
-  const url = env.EXPO_PUBLIC_API_URL;
+export function resolveBaseUrl(): string {
+  const url = process.env.EXPO_PUBLIC_API_URL;
   if (!url) {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL não está definida. Crie um arquivo .env na raiz do projeto (veja .env.example)."
-    );
+    // Fallback em vez de throw — evita crashar o app inteiro se a env var não chegar
+    console.warn("EXPO_PUBLIC_API_URL não definida, usando fallback de produção");
+    return "https://vigilancia-api.onrender.com/api";
   }
   return url;
 }
