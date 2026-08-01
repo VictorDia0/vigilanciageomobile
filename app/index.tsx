@@ -1,19 +1,23 @@
+import { useState } from "react";
 import { Redirect } from "expo-router";
 import { useAuthStore } from "@/src/store/authStore";
-import { View, ActivityIndicator } from "react-native";
+import { AnimatedSplash } from "@/src/components/AnimatedSplash";
 
 export default function Index() {
-    const { authenticated, hydrated } = useAuthStore();
+    const { authenticated, hydrated, onboardingSeen } = useAuthStore();
+    const [splashDone, setSplashDone] = useState(false);
 
-    if (!hydrated) {
-        return (
-            <View style={{ flex: 1, backgroundColor: "#090909", alignItems: "center", justifyContent: "center" }}>
-                <ActivityIndicator color="#00D4FF" />
-            </View>
-        );
+    if (!hydrated || !splashDone) {
+        return <AnimatedSplash onFinish={() => setSplashDone(true)} />;
     }
 
-    return authenticated
-        ? <Redirect href="/(app)" />
-        : <Redirect href="/(auth)" />;
+    if (authenticated) {
+        return <Redirect href="/(app)" />;
+    }
+
+    if (!onboardingSeen) {
+        return <Redirect href="/onboarding" />;
+    }
+
+    return <Redirect href="/(auth)" />;
 }

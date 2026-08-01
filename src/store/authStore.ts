@@ -33,11 +33,13 @@ interface AuthState {
   hydrated: boolean;
   loading: boolean;
   error: string | null;
+  onboardingSeen: boolean;
   login: (email: string, senha: string) => Promise<boolean>;
   logout: () => Promise<void>;
   setToken: (token: string | null) => void;
   setHydrated: () => void;
   updateUser: (patch: Partial<User>) => void;
+  markOnboardingSeen: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -49,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       hydrated: false,
       loading: false,
       error: null,
+      onboardingSeen: false,
 
       login: async (email, senha) => {
         set({ loading: true, error: null });
@@ -94,6 +97,8 @@ export const useAuthStore = create<AuthState>()(
 
       setHydrated: () => set({ hydrated: true }),
 
+      markOnboardingSeen: () => set({ onboardingSeen: true }),
+
       updateUser: (patch) =>
         set((s) => ({ user: s.user ? { ...s.user, ...patch } : s.user })),
     }),
@@ -102,7 +107,11 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Só dado não sensível vai pro AsyncStorage — o token nunca é persistido
       // aqui, só em memória + SecureStore (ver onRehydrateStorage abaixo).
-      partialize: (s) => ({ user: s.user, authenticated: s.authenticated }),
+      partialize: (s) => ({
+        user: s.user,
+        authenticated: s.authenticated,
+        onboardingSeen: s.onboardingSeen,
+      }),
       onRehydrateStorage: () => (state) => {
         secureStorage.getToken().then((token) => {
           state?.setToken(token);

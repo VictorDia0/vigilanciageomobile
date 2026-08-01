@@ -17,7 +17,28 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Path, Circle } from "react-native-svg";
 import { useAuthStore } from "@/src/store/authStore";
+
+const PIN_D =
+  "M12 2C7.58 2 4 5.58 4 10c0 5.25 6.72 11.34 7.39 11.94a1 1 0 0 0 1.22 0C13.28 21.34 20 15.25 20 10c0-4.42-3.58-8-8-8z";
+
+function LogoMark() {
+  return (
+    <Svg width={60} height={60} viewBox="0 0 24 24">
+      <Defs>
+        <SvgLinearGradient id="loginPinGrad" x1="4" y1="2" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+          <Stop offset="0" stopColor="#00D4FF" />
+          <Stop offset="1" stopColor="#0057D8" />
+        </SvgLinearGradient>
+      </Defs>
+      <Path fill="url(#loginPinGrad)" d={PIN_D} />
+      <Circle cx={12} cy={9.6} r={3.3} fill="none" stroke="#FFFFFF" strokeWidth={0.55} opacity={0.55} />
+      <Circle cx={12} cy={9.6} r={2.05} fill="none" stroke="#FFFFFF" strokeWidth={0.6} opacity={0.8} />
+      <Circle cx={12} cy={9.6} r={0.85} fill="#FFFFFF" />
+    </Svg>
+  );
+}
 
 // Cores consistentes com as outras telas
 const C = {
@@ -78,7 +99,7 @@ export default function LoginScreen() {
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: insets.bottom + 20 },
+              { paddingBottom: insets.bottom + 32 },
             ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -87,13 +108,13 @@ export default function LoginScreen() {
             {/* Logo */}
             <View style={styles.logoContainer}>
               <View style={styles.logoIcon}>
-                <Ionicons name="locate" size={32} color={C.primary} />
+                <LogoMark />
               </View>
               <Text style={styles.logoTitle}>
-                VIGIA<Text style={styles.logoAccent}>GEO</Text>
+                SI<Text style={styles.logoAccent}>SVA</Text>
               </Text>
               <Text style={styles.logoSubtitle}>
-                Sistema de Vigilância em Saúde
+                Sistema de Vigilância Ambiental
               </Text>
             </View>
 
@@ -101,9 +122,6 @@ export default function LoginScreen() {
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>Acessar sistema</Text>
-                <Text style={styles.cardSubtitle}>
-                  Acesso restrito a agentes de campo
-                </Text>
               </View>
 
               {error ? (
@@ -251,13 +269,9 @@ const styles = StyleSheet.create({
   logoIcon: {
     width: 72,
     height: 72,
-    borderRadius: 36,
-    backgroundColor: C.primary + "10",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: C.primary + "20",
   },
   
   logoTitle: {
@@ -425,10 +439,11 @@ const styles = StyleSheet.create({
   },
   
   copyright: {
-    fontSize: 11,
-    color: C.textMuted,
+    fontSize: 12,
+    color: C.textSecondary,
     textAlign: "center",
     marginTop: 16,
-    opacity: 0.6,
+    marginBottom: 8,
+    fontWeight: "500",
   },
 });
