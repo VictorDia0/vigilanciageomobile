@@ -72,6 +72,31 @@ export interface RegistrarImovelPayload {
   longitude?: number;
   /** true quando o provider de localização do dispositivo estava mockado */
   mocked?: boolean;
+
+  // ── Anti-fraude (backend ainda não lê estes campos — enviados para quando ler) ──
+  /** GPS capturado ao abrir o formulário do imóvel */
+  lat_inicio?: number | null;
+  lng_inicio?: number | null;
+  precisao_gps_inicio?: number | null;
+  /** GPS capturado ao salvar (mesmo instante de `latitude`/`longitude` acima) */
+  lat_fim?: number | null;
+  lng_fim?: number | null;
+  precisao_gps_fim?: number | null;
+  /** Distância entre o GPS de início e o de fim do preenchimento, em metros */
+  distancia_metros?: number | null;
+  /** true se distancia_metros > 50 */
+  distancia_flag?: boolean;
+  /** ISO 8601 — abertura do formulário do imóvel */
+  iniciada_em?: string;
+  /** ISO 8601 — submit do formulário */
+  finalizada_em?: string;
+  tempo_visita_segundos?: number;
+  /** true se qualquer uma das leituras de GPS (início ou fim) veio de um provider mockado */
+  gps_mocked?: boolean;
+  /** false quando nenhuma das duas leituras de GPS foi obtida */
+  gps_disponivel?: boolean;
+  plataforma?: "ios" | "android";
+  versao_app?: string;
 }
 
 // ─── Recuperação (imóveis fechados) ──────────────────────────────────────────

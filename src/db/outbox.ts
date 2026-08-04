@@ -38,6 +38,22 @@ export interface RegistrarImovelOffline {
     latitude?: number;
     longitude?: number;
     mocked?: boolean;
+    // ── Anti-fraude ──
+    lat_inicio?: number | null;
+    lng_inicio?: number | null;
+    precisao_gps_inicio?: number | null;
+    lat_fim?: number | null;
+    lng_fim?: number | null;
+    precisao_gps_fim?: number | null;
+    distancia_metros?: number | null;
+    distancia_flag?: boolean;
+    iniciada_em?: string;
+    finalizada_em?: string;
+    tempo_visita_segundos?: number;
+    gps_mocked?: boolean;
+    gps_disponivel?: boolean;
+    plataforma?: "ios" | "android";
+    versao_app?: string;
   };
 }
 

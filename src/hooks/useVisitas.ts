@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
+import Constants from "expo-constants";
 import type {
   ModoInicio,
   QuadraResumo,
@@ -14,9 +15,15 @@ import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
 import { outbox, type FecharVisitaOffline, type EncerrarQuadraOffline } from "../db/outbox";
 import { isErroDeRede, sincronizarPendentes } from "../services/sync";
-import { locationService, type PosicaoAtual } from "../services/locationService";
+import {
+  locationService,
+  type LocalizacaoResultado,
+} from "../services/locationService";
+import { distanciaHaversine } from "../utils/geo";
 import { useAuthStore } from "../store/authStore";
 import { useSyncStore } from "../store/syncStore";
+
+const DISTANCIA_FLAG_METROS = 50;
 
 // ─── Steps do fluxo ───────────────────────────────────────────────────────────
 //
@@ -91,6 +98,11 @@ export function useVisitas() {
   const [visitaAberta, setVisitaAberta] = useState<Visita | null>(null);
   const [imoveis, setImoveis] = useState<Imovel[]>([]);
   const [form, setForm] = useState<ImovelFormState>(FORM_VAZIO);
+
+  // ── Anti-fraude: GPS/tempo capturados por registro de imóvel ───────────────
+  const [iniciadaEm, setIniciadaEm] = useState<string | null>(null);
+  const [posicaoInicio, setPosicaoInicio] = useState<LocalizacaoResultado | null>(null);
+  const [avisoGps, setAvisoGps] = useState<string | null>(null);
 
   /** Como a quadra será aberta: iniciar | continuar | retomar */
   const [modoInicio, setModoInicio] = useState<ModoInicio>("iniciar");
@@ -215,7 +227,14 @@ export function useVisitas() {
     setForm(FORM_VAZIO);
     setError(null);
     setSuccessMsg(null);
+    setAvisoGps(null);
     setStep("form_imovel");
+
+    // Captura o GPS de início em segundo plano assim que o formulário abre —
+    // não trava a navegação, o resultado só é usado no submit (salvarImovel).
+    setIniciadaEm(new Date().toISOString());
+    setPosicaoInicio(null);
+    locationService.getCurrentLocationWithMetadata().then(setPosicaoInicio);
   }, []);
 
   // ─── Salvar imóvel (online → API; sem rede → outbox) ───────────────────────
@@ -242,22 +261,23 @@ export function useVisitas() {
 
     setLoading(true);
     setError(null);
+    setAvisoGps(null);
 
-    // Geolocalização é obrigatória. O raio de 30km da cidade é só um alerta
-    // client-side (as coordenadas cadastradas da cidade podem ser imprecisas)
-    // — não bloqueia mais o registro sem chance de confirmação, senão um erro
-    // de cadastro da cidade trava o agente em campo sem alternativa.
-    // lat/lng/mocked seguem no payload pro backend cruzar com o raio da
-    // quadra e a detecção de mock location (anti-fraude de verdade).
-    let posicao: PosicaoAtual;
-    try {
-      posicao = await locationService.getCurrentPosition();
+    // GPS é capturado no início (novoImovel) e agora no fim — mas nunca
+    // bloqueia o salvamento. Se faltar, segue com gps_disponivel=false e
+    // as flags ficam pra análise do supervisor depois. O raio de 30km da
+    // cidade continua como alerta client-side (coordenadas da cidade podem
+    // ser imprecisas), só roda quando há GPS de fato.
+    const finalizadaEm = new Date().toISOString();
+    const posicaoFim = await locationService.getCurrentLocationWithMetadata();
+
+    if (posicaoFim.disponivel) {
       const cidade = useAuthStore.getState().user?.cidade;
       if (cidade?.lat != null && cidade?.lng != null) {
-        const dentroDoRaio = locationService.isWithinRadius(posicao, {
-          latitude: cidade.lat,
-          longitude: cidade.lng,
-        });
+        const dentroDoRaio = locationService.isWithinRadius(
+          { latitude: posicaoFim.latitude, longitude: posicaoFim.longitude },
+          { latitude: cidade.lat, longitude: cidade.lng }
+        );
         if (!dentroDoRaio) {
           const confirma = await confirmarForaDoRaio();
           if (!confirma) {
@@ -267,13 +287,26 @@ export function useVisitas() {
           }
         }
       }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Não foi possível obter sua localização."
-      );
-      setLoading(false);
-      return;
+    } else {
+      setAvisoGps("Localização indisponível — a visita será registrada sem GPS.");
     }
+
+    const distanciaMetros =
+      posicaoInicio?.disponivel && posicaoFim.disponivel
+        ? distanciaHaversine(
+            posicaoInicio.latitude,
+            posicaoInicio.longitude,
+            posicaoFim.latitude,
+            posicaoFim.longitude
+          )
+        : null;
+    const gpsMocked = Boolean(
+      (posicaoInicio?.disponivel && posicaoInicio.mocked) ||
+        (posicaoFim.disponivel && posicaoFim.mocked)
+    );
+    const tempoVisitaSegundos = iniciadaEm
+      ? Math.round((new Date(finalizadaEm).getTime() - new Date(iniciadaEm).getTime()) / 1000)
+      : 0;
 
     const horario = new Date().toTimeString().slice(0, 5);
     const dadosImovel = {
@@ -315,9 +348,24 @@ export function useVisitas() {
         ? parseInt(form.depositos_tratados) || null
         : null,
       fotos: fotosEnviadas.length > 0 ? fotosEnviadas : undefined,
-      latitude: posicao.latitude,
-      longitude: posicao.longitude,
-      mocked: posicao.mocked,
+      latitude: posicaoFim.disponivel ? posicaoFim.latitude : undefined,
+      longitude: posicaoFim.disponivel ? posicaoFim.longitude : undefined,
+      mocked: posicaoFim.disponivel ? posicaoFim.mocked : undefined,
+      lat_inicio: posicaoInicio?.disponivel ? posicaoInicio.latitude : null,
+      lng_inicio: posicaoInicio?.disponivel ? posicaoInicio.longitude : null,
+      precisao_gps_inicio: posicaoInicio?.disponivel ? posicaoInicio.accuracy : null,
+      lat_fim: posicaoFim.disponivel ? posicaoFim.latitude : null,
+      lng_fim: posicaoFim.disponivel ? posicaoFim.longitude : null,
+      precisao_gps_fim: posicaoFim.disponivel ? posicaoFim.accuracy : null,
+      distancia_metros: distanciaMetros,
+      distancia_flag: distanciaMetros !== null && distanciaMetros > DISTANCIA_FLAG_METROS,
+      iniciada_em: iniciadaEm ?? finalizadaEm,
+      finalizada_em: finalizadaEm,
+      tempo_visita_segundos: tempoVisitaSegundos,
+      gps_mocked: gpsMocked,
+      gps_disponivel: posicaoFim.disponivel,
+      plataforma: (Platform.OS === "ios" ? "ios" : "android") as "ios" | "android",
+      versao_app: Constants.expoConfig?.version ?? "desconhecida",
     };
 
     try {
@@ -394,7 +442,7 @@ export function useVisitas() {
     } finally {
       setLoading(false);
     }
-  }, [visitaAberta, quadraSelecionada, form]);
+  }, [visitaAberta, quadraSelecionada, form, iniciadaEm, posicaoInicio]);
 
   // ─── Encerrar visitas do DIA (pausa/fim de expediente) ─────────────────────
   // A quadra CONTINUA em_andamento. Amanhã o agente retoma de onde parou.
@@ -517,6 +565,7 @@ export function useVisitas() {
     modoInicio,
     totalFechados,
     pendentesSync,
+    avisoGps,
 
     // actions
     setAreas,

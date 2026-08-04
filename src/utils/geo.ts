@@ -32,3 +32,15 @@ export function isWithinRadius(
 ): boolean {
   return distanciaKm(ponto, centro) <= raioKm;
 }
+
+/** Mesma fórmula de distanciaKm, em metros — assinatura usada pelas checagens anti-fraude. */
+export function distanciaHaversine(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  return (
+    distanciaKm({ latitude: lat1, longitude: lng1 }, { latitude: lat2, longitude: lng2 }) * 1000
+  );
+}

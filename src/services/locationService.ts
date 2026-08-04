@@ -28,6 +28,61 @@ function comTimeout<T>(promise: Promise<T>, ms: number, mensagemErro: string): P
   ]);
 }
 
+class GpsTimeoutError extends Error {}
+
+function comTimeoutSilencioso<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new GpsTimeoutError()), ms)),
+  ]);
+}
+
+export type LocalizacaoDisponivel = {
+  disponivel: true;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  mocked: boolean;
+};
+
+export type LocalizacaoIndisponivel = {
+  disponivel: false;
+  motivo: "permission_denied" | "timeout" | "unknown";
+};
+
+export type LocalizacaoResultado = LocalizacaoDisponivel | LocalizacaoIndisponivel;
+
+/**
+ * Igual a getCurrentPosition, mas nunca lança — usada nos pontos anti-fraude
+ * (início/fim de registro de imóvel) onde falha de GPS não pode travar o
+ * agente, só virar `gps_disponivel=false` no payload.
+ */
+async function getCurrentLocationWithMetadata(): Promise<LocalizacaoResultado> {
+  const concedida = await pedirPermissao();
+  if (!concedida) {
+    return { disponivel: false, motivo: "permission_denied" };
+  }
+
+  try {
+    const posicao = await comTimeoutSilencioso(
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
+      TIMEOUT_GPS_MS
+    );
+    return {
+      disponivel: true,
+      latitude: posicao.coords.latitude,
+      longitude: posicao.coords.longitude,
+      accuracy: posicao.coords.accuracy,
+      mocked: posicao.mocked ?? false,
+    };
+  } catch (err) {
+    return {
+      disponivel: false,
+      motivo: err instanceof GpsTimeoutError ? "timeout" : "unknown",
+    };
+  }
+}
+
 async function getCurrentPosition(): Promise<PosicaoAtual> {
   const concedida = await pedirPermissao();
   if (!concedida) {
@@ -50,6 +105,7 @@ async function getCurrentPosition(): Promise<PosicaoAtual> {
 export const locationService = {
   pedirPermissao,
   getCurrentPosition,
+  getCurrentLocationWithMetadata,
   distanciaKm,
   isWithinRadius: (ponto: Coordenadas, centro: Coordenadas, raioKm: number = RAIO_PADRAO_KM) =>
     isWithinRadius(ponto, centro, raioKm),

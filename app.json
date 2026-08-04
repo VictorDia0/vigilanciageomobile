@@ -12,7 +12,6 @@
       "supportsTablet": true
     },
     "android": {
-      "usesCleartextTraffic": false,
       "adaptiveIcon": {
         "backgroundColor": "#090909",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -34,7 +33,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/android-icon-foreground.png"
     },
     "plugins": [
       "expo-router",

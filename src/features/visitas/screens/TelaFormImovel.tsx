@@ -15,7 +15,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { C } from "@/src/theme/tokens";
-import { PageHeader, ErrorBanner } from "@/src/components/ui";
+import { PageHeader, ErrorBanner, WarningBanner } from "@/src/components/ui";
 import { SITUACOES_FORM, TIPOS_IMOVEL } from "@/src/constants/visita";
 import { useVisitasContext } from "../context/VisitasContext";
 import type { ImovelFormState } from "@/src/hooks/useVisitas";
@@ -33,7 +33,7 @@ function Card({ children }: { children: React.ReactNode }) {
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 
 export function TelaFormImovel() {
-    const { form, loading, error, setForm, salvarImovel, voltar } =
+    const { form, loading, error, avisoGps, setForm, salvarImovel, voltar } =
         useVisitasContext();
 
     const set = <K extends keyof ImovelFormState>(key: K, value: ImovelFormState[K]) =>
@@ -65,6 +65,7 @@ export function TelaFormImovel() {
         >
             <PageHeader title="Registrar Imóvel" onBack={voltar} />
             {error && <ErrorBanner message={error} />}
+            {avisoGps && <WarningBanner icon="location-outline" message={avisoGps} />}
 
             <ScrollView
                 contentContainerStyle={[s.scroll, { paddingBottom:  100 }]}
