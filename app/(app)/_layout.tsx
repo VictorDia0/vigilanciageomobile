@@ -24,7 +24,6 @@ import { useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/src/store/authStore";
 import { shouldRedirectToLogin } from "@/src/utils/authGuard";
-import { useInactivityLogout } from "@/src/hooks/useInactivityLogout";
 import { useNetworkSync } from "@/src/hooks/useNetworkSync";
 import { OfflineBanner } from "@/src/components/ui";
 
@@ -127,7 +126,6 @@ function TabIcon({
 export default function AppLayout() {
   const { authenticated, hydrated } = useAuthStore();
   const insets = useSafeAreaInsets();
-  useInactivityLogout();
   const { online, pendentes, comFalha } = useNetworkSync();
 
   if (shouldRedirectToLogin(hydrated, authenticated)) {
