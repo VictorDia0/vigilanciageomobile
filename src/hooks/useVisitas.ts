@@ -13,7 +13,7 @@ import type { Imovel } from "@/src/types/imovel";
 import { visitaService } from "../services/visitaService";
 import { api } from "../services/api";
 import { outbox, type FecharVisitaOffline, type EncerrarQuadraOffline } from "../db/outbox";
-import { isErroDeRede, sincronizarPendentes } from "../services/sync";
+import { sincronizarPendentes } from "../services/sync";
 import {
   locationService,
   type LocalizacaoResultado,
@@ -424,83 +424,49 @@ export function useVisitas() {
   // ─── Encerrar visitas do DIA (pausa/fim de expediente) ─────────────────────
   // A quadra CONTINUA em_andamento. Amanhã o agente retoma de onde parou.
 
-  const encerrarDia = useCallback(async () => {
+  const encerrarDia = useCallback(() => {
     if (!visitaAberta) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await visitaService.fecharVisita(visitaAberta.id);
-      setVisitaAberta(null);
-      setImoveis([]);
-      setQuadraSelecionada(null);
-      setSuccessMsg(
-        "Visitas do dia encerradas. O quarteirão continua em andamento — retome quando voltar."
-      );
-      setStep("selecionar_quadra");
-      atualizarArea();
-    } catch (err: any) {
-      if (isErroDeRede(err)) {
-        // Sem sinal no fim do expediente: enfileira e deixa o agente ir
-        // embora — sincroniza quando a conexão voltar.
-        outbox.enqueue("fechar_visita", { visita_id: visitaAberta.id } satisfies FecharVisitaOffline);
-        refreshPendentesSync();
-        setVisitaAberta(null);
-        setImoveis([]);
-        setQuadraSelecionada(null);
-        setSuccessMsg("Sem conexão — encerramento salvo no aparelho. Será sincronizado.");
-        setStep("selecionar_quadra");
-      } else {
-        setError(
-          err?.response?.data?.message ?? "Não foi possível encerrar o dia."
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
+
+    // Sempre enfileira e sai da tela na hora — igual ao registro de
+    // imóvel. Se o servidor recusar por algum motivo, isso aparece
+    // depois em Perfil > Registros com erro, não trava o agente aqui.
+    outbox.enqueue("fechar_visita", { visita_id: visitaAberta.id } satisfies FecharVisitaOffline);
+    refreshPendentesSync();
+    setVisitaAberta(null);
+    setImoveis([]);
+    setQuadraSelecionada(null);
+    setSuccessMsg(
+      "Visitas do dia encerradas. O quarteirão continua em andamento — retome quando voltar."
+    );
+    setStep("selecionar_quadra");
+    atualizarArea();
+
+    sincronizarPendentes().finally(refreshPendentesSync);
   }, [visitaAberta, atualizarArea]);
 
   // ─── Encerrar QUARTEIRÃO (definitivo) ──────────────────────────────────────
   // Fecha a sessão aberta e marca a quadra como concluída. Não reabre.
   // Imóveis F continuam acessíveis na tela de Recuperação.
 
-  const encerrarQuadra = useCallback(async () => {
+  const encerrarQuadra = useCallback(() => {
     if (!quadraSelecionada) return;
-    setLoading(true);
-    setError(null);
-    try {
-      if (visitaAberta) {
-        await visitaService.fecharVisita(visitaAberta.id);
-      }
-      await visitaService.encerrarQuadra(quadraSelecionada.id);
-      setVisitaAberta(null);
-      setImoveis([]);
-      setQuadraSelecionada(null);
-      setSuccessMsg(
-        "Quarteirão encerrado. Selecione o próximo para continuar o dia."
-      );
-      setStep("selecionar_quadra");
-      atualizarArea();
-    } catch (err: any) {
-      if (isErroDeRede(err)) {
-        outbox.enqueue("encerrar_quadra", {
-          visita_id: visitaAberta?.id ?? null,
-          quadra_id: quadraSelecionada.id,
-        } satisfies EncerrarQuadraOffline);
-        refreshPendentesSync();
-        setVisitaAberta(null);
-        setImoveis([]);
-        setQuadraSelecionada(null);
-        setSuccessMsg("Sem conexão — encerramento salvo no aparelho. Será sincronizado.");
-        setStep("selecionar_quadra");
-      } else {
-        setError(
-          err?.response?.data?.message ??
-          "Não foi possível encerrar o quarteirão."
-        );
-      }
-    } finally {
-      setLoading(false);
-    }
+
+    // Mesma lógica do registro de imóvel: enfileira e sai da tela na
+    // hora. Erro de servidor vira item em Perfil > Registros com erro
+    // em vez de travar o agente aqui.
+    outbox.enqueue("encerrar_quadra", {
+      visita_id: visitaAberta?.id ?? null,
+      quadra_id: quadraSelecionada.id,
+    } satisfies EncerrarQuadraOffline);
+    refreshPendentesSync();
+    setVisitaAberta(null);
+    setImoveis([]);
+    setQuadraSelecionada(null);
+    setSuccessMsg("Quarteirão encerrado. Selecione o próximo para continuar o dia.");
+    setStep("selecionar_quadra");
+    atualizarArea();
+
+    sincronizarPendentes().finally(refreshPendentesSync);
   }, [quadraSelecionada, visitaAberta, atualizarArea]);
 
   // ─── Sincronizar registros offline ─────────────────────────────────────────

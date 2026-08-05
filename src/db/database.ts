@@ -24,7 +24,7 @@ function migrate(database: SQLite.SQLiteDatabase) {
       client_uuid TEXT NOT NULL UNIQUE,
       tipo TEXT NOT NULL,            -- ex.: 'registrar_imovel'
       payload TEXT NOT NULL,         -- JSON da ação
-      criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+      criado_em TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
       tentativas INTEGER NOT NULL DEFAULT 0,
       ultimo_erro TEXT
     );

@@ -101,12 +101,20 @@ function uuid(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** "YYYY-MM-DD HH:MM:SS" em horário LOCAL do aparelho — o default do SQLite
+ * (datetime('now')) é UTC, o que mostrava a hora errada pro agente. */
+function agoraLocal(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 export const outbox = {
   enqueue(tipo: OutboxTipo, payload: object): string {
     const client_uuid = uuid();
     getDb().runSync(
-      "INSERT INTO outbox (client_uuid, tipo, payload) VALUES (?, ?, ?)",
-      [client_uuid, tipo, JSON.stringify(payload)]
+      "INSERT INTO outbox (client_uuid, tipo, payload, criado_em) VALUES (?, ?, ?, ?)",
+      [client_uuid, tipo, JSON.stringify(payload), agoraLocal()]
     );
     return client_uuid;
   },
