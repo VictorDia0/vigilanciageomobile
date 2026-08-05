@@ -62,6 +62,15 @@ interface Props {
   areas: Area[];
 }
 
+/** Formata dígitos digitados como DD/MM/AAAA, inserindo as barras automaticamente. */
+function formatarDataDigitada(valor: string): string {
+  const digitos = valor.replace(/\D/g, "").slice(0, 8);
+  const dia = digitos.slice(0, 2);
+  const mes = digitos.slice(2, 4);
+  const ano = digitos.slice(4, 8);
+  return [dia, mes, ano].filter(Boolean).join("/");
+}
+
 function CampoPeriodo({ filtros, onChange }: Pick<Props, "filtros" | "onChange">) {
   return (
     <View style={{ gap: 6 }}>
@@ -71,7 +80,7 @@ function CampoPeriodo({ filtros, onChange }: Pick<Props, "filtros" | "onChange">
           <TextInput
             style={s.input}
             value={filtros.dataInicio}
-            onChangeText={(v) => onChange({ dataInicio: v })}
+            onChangeText={(v) => onChange({ dataInicio: formatarDataDigitada(v) })}
             placeholder="Início (DD/MM/AAAA)"
             placeholderTextColor={C.textMut}
             keyboardType="numeric"
@@ -82,7 +91,7 @@ function CampoPeriodo({ filtros, onChange }: Pick<Props, "filtros" | "onChange">
           <TextInput
             style={s.input}
             value={filtros.dataFim}
-            onChangeText={(v) => onChange({ dataFim: v })}
+            onChangeText={(v) => onChange({ dataFim: formatarDataDigitada(v) })}
             placeholder="Fim (DD/MM/AAAA)"
             placeholderTextColor={C.textMut}
             keyboardType="numeric"

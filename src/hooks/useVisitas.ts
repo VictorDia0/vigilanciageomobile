@@ -73,6 +73,25 @@ function confirmarForaDoRaio(): Promise<boolean> {
   });
 }
 
+/** Melhor-esforço: se o upload falhar (ex.: sem rede), o registro do imóvel segue sem fotos em vez de bloquear o fluxo todo. */
+async function uploadFotos(fotos: string[], visitaId: number | undefined): Promise<string[]> {
+  if (fotos.length === 0 || !visitaId) return [];
+  try {
+    const uploads = await Promise.all(
+      fotos.map((uri, i) =>
+        visitaService.uploadFoto(visitaId, {
+          uri,
+          name: `foto-${Date.now()}-${i}.jpg`,
+          type: "image/jpeg",
+        })
+      )
+    );
+    return uploads.map((u) => u.path);
+  } catch {
+    return [];
+  }
+}
+
 const FORM_VAZIO: ImovelFormState = {
   logradouro: "",
   numero: "",
@@ -268,8 +287,17 @@ export function useVisitas() {
     // as flags ficam pra análise do supervisor depois. O raio de 30km da
     // cidade continua como alerta client-side (coordenadas da cidade podem
     // ser imprecisas), só roda quando há GPS de fato.
+    //
+    // GPS e upload de fotos não dependem um do outro — rodar em paralelo
+    // corta o tempo de espera quase pela metade em vez de somar os dois.
+    // criarImovel() fica de fora desse Promise.all de propósito: só deve
+    // rodar depois do gate do raio (abaixo), senão um "cancelar" criaria
+    // um imóvel órfão sem registro de visita associado.
     const finalizadaEm = new Date().toISOString();
-    const posicaoFim = await locationService.getCurrentLocationWithMetadata();
+    const [posicaoFim, fotosEnviadas] = await Promise.all([
+      locationService.getCurrentLocationWithMetadata(),
+      uploadFotos(form.fotos, visitaAberta?.id),
+    ]);
 
     if (posicaoFim.disponivel) {
       const cidade = useAuthStore.getState().user?.cidade;
@@ -315,26 +343,6 @@ export function useVisitas() {
       sem_numero: form.sem_numero,
       tipo_imovel: form.tipo_imovel,
     };
-
-    // Fotos são melhor-esforço: se o upload falhar (ex.: sem rede), o
-    // registro do imóvel segue sem elas em vez de bloquear o fluxo todo.
-    let fotosEnviadas: string[] = [];
-    if (form.fotos.length > 0 && visitaAberta) {
-      try {
-        const uploads = await Promise.all(
-          form.fotos.map((uri, i) =>
-            visitaService.uploadFoto(visitaAberta.id, {
-              uri,
-              name: `foto-${Date.now()}-${i}.jpg`,
-              type: "image/jpeg",
-            })
-          )
-        );
-        fotosEnviadas = uploads.map((u) => u.path);
-      } catch {
-        // segue sem fotos
-      }
-    }
 
     const dadosRegistro = {
       horario_visita: horario,
@@ -544,6 +552,7 @@ export function useVisitas() {
     const mapa: Partial<Record<VisitaStep, VisitaStep>> = {
       selecionar_quadra: "selecionar_area",
       confirmar_inicio: "selecionar_quadra",
+      visita_aberta: "selecionar_quadra",
       form_imovel: "visita_aberta",
     };
     const destino = mapa[step];
