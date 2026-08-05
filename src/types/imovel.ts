@@ -25,4 +25,8 @@ export interface Imovel {
     created_at: string | null;
     /** true quando o registro está na outbox aguardando sincronização */
     pendente_sync?: boolean;
+    /** liga o imóvel local ao item correspondente na outbox */
+    client_uuid?: string;
+    /** motivo do erro se a sincronização já tentou e foi recusada pelo servidor */
+    sync_erro?: string | null;
 }

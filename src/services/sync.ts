@@ -48,6 +48,27 @@ async function executarSincronizacao(): Promise<ResultadoSync> {
     try {
       if (item.tipo === "registrar_imovel") {
         const p = item.payload as RegistrarImovelOffline;
+
+        // Fotos são melhor-esforço: se o upload falhar (ex.: sem rede), o
+        // registro segue sem elas em vez de travar a fila inteira.
+        let fotos = p.registro.fotos;
+        if (!fotos?.length && p.fotosLocais?.length) {
+          try {
+            const uploads = await Promise.all(
+              p.fotosLocais.map((uri, i) =>
+                visitaService.uploadFoto(p.visita_id, {
+                  uri,
+                  name: `foto-${Date.now()}-${i}.jpg`,
+                  type: "image/jpeg",
+                })
+              )
+            );
+            fotos = uploads.map((u) => u.path);
+          } catch {
+            // segue sem fotos
+          }
+        }
+
         const imovel = await visitaService.criarImovel({
           quadra_id: p.quadra_id,
           client_uuid: item.client_uuid,
@@ -56,6 +77,7 @@ async function executarSincronizacao(): Promise<ResultadoSync> {
         await visitaService.registrarImovel(p.visita_id, {
           imovel_id: imovel.id,
           ...p.registro,
+          fotos,
           situacao: p.registro.situacao as any,
           client_uuid: item.client_uuid,
         });

@@ -4,7 +4,6 @@ import Constants from "expo-constants";
 import type {
   ModoInicio,
   QuadraResumo,
-  RegistrarImovelPayload,
   SituacaoImovel,
   Visita,
 } from "@/src/types/visita";
@@ -71,25 +70,6 @@ function confirmarForaDoRaio(): Promise<boolean> {
       { cancelable: true, onDismiss: () => resolve(false) }
     );
   });
-}
-
-/** Melhor-esforço: se o upload falhar (ex.: sem rede), o registro do imóvel segue sem fotos em vez de bloquear o fluxo todo. */
-async function uploadFotos(fotos: string[], visitaId: number | undefined): Promise<string[]> {
-  if (fotos.length === 0 || !visitaId) return [];
-  try {
-    const uploads = await Promise.all(
-      fotos.map((uri, i) =>
-        visitaService.uploadFoto(visitaId, {
-          uri,
-          name: `foto-${Date.now()}-${i}.jpg`,
-          type: "image/jpeg",
-        })
-      )
-    );
-    return uploads.map((u) => u.path);
-  } catch {
-    return [];
-  }
 }
 
 const FORM_VAZIO: ImovelFormState = {
@@ -256,7 +236,23 @@ export function useVisitas() {
     locationService.getCurrentLocationWithMetadata().then(setPosicaoInicio);
   }, []);
 
-  // ─── Salvar imóvel (online → API; sem rede → outbox) ───────────────────────
+  // ─── Reflete o resultado da sincronização de um imóvel local na lista ─────
+  // Chamado depois que sincronizarPendentes() roda: se o item já não está
+  // mais na outbox, sincronizou com sucesso; se está com tentativas > 0,
+  // o servidor recusou (erro de negócio) e o motivo fica visível no card.
+  const atualizarStatusSync = useCallback((clientUuid: string) => {
+    setImoveis((prev) =>
+      prev.map((im) => {
+        if (im.client_uuid !== clientUuid) return im;
+        const item = outbox.buscarPorUuid(clientUuid);
+        if (!item) return { ...im, pendente_sync: false, sync_erro: null };
+        if (item.tentativas > 0) return { ...im, sync_erro: item.ultimo_erro };
+        return im;
+      })
+    );
+  }, []);
+
+  // ─── Salvar imóvel (sempre vai pra fila, sincroniza em segundo plano) ─────
 
   const salvarImovel = useCallback(async () => {
     if (!visitaAberta || !quadraSelecionada) return;
@@ -288,16 +284,12 @@ export function useVisitas() {
     // cidade continua como alerta client-side (coordenadas da cidade podem
     // ser imprecisas), só roda quando há GPS de fato.
     //
-    // GPS e upload de fotos não dependem um do outro — rodar em paralelo
-    // corta o tempo de espera quase pela metade em vez de somar os dois.
-    // criarImovel() fica de fora desse Promise.all de propósito: só deve
-    // rodar depois do gate do raio (abaixo), senão um "cancelar" criaria
-    // um imóvel órfão sem registro de visita associado.
+    // GPS continua síncrono de propósito — é o dado anti-fraude que precisa
+    // ser capturado nesse instante exato, não minutos depois numa
+    // sincronização em segundo plano. Foto e as chamadas de rede (criar +
+    // registrar imóvel), essas sim, vão pra fila logo abaixo.
     const finalizadaEm = new Date().toISOString();
-    const [posicaoFim, fotosEnviadas] = await Promise.all([
-      locationService.getCurrentLocationWithMetadata(),
-      uploadFotos(form.fotos, visitaAberta?.id),
-    ]);
+    const posicaoFim = await locationService.getCurrentLocationWithMetadata();
 
     if (posicaoFim.disponivel) {
       const cidade = useAuthStore.getState().user?.cidade;
@@ -355,7 +347,6 @@ export function useVisitas() {
       depositos_tratados: form.tratado
         ? parseInt(form.depositos_tratados) || null
         : null,
-      fotos: fotosEnviadas.length > 0 ? fotosEnviadas : undefined,
       latitude: posicaoFim.disponivel ? posicaoFim.latitude : undefined,
       longitude: posicaoFim.disponivel ? posicaoFim.longitude : undefined,
       mocked: posicaoFim.disponivel ? posicaoFim.mocked : undefined,
@@ -376,81 +367,59 @@ export function useVisitas() {
       versao_app: Constants.expoConfig?.version ?? "desconhecida",
     };
 
+    // ─── Sempre vai pra fila — o imóvel aparece na lista na hora, e a foto +
+    // as chamadas de rede (criar/registrar) sincronizam em segundo plano.
+    // Isso é o que de fato demorava: rede de campo é lenta e instável, não
+    // faz sentido travar o agente na tela esperando dois round-trips.
+    let clientUuid: string;
     try {
-      // 1. Cria o imóvel na quadra
-      const imovelRes = await visitaService.criarImovel({
+      clientUuid = outbox.enqueue("registrar_imovel", {
+        visita_id: visitaAberta.id,
         quadra_id: quadraSelecionada.id,
-        ...dadosImovel,
+        imovel: dadosImovel,
+        fotosLocais: form.fotos,
+        registro: dadosRegistro,
       });
-
-      // 2. Registra a visita no imóvel
-      const payload: RegistrarImovelPayload = {
-        imovel_id: imovelRes.id,
-        ...dadosRegistro,
-      };
-      const visitaAtualizada = await visitaService.registrarImovel(
-        visitaAberta.id,
-        payload
-      );
-
-      setVisitaAberta(visitaAtualizada);
-      setImoveis((prev) => [
-        ...prev,
-        {
-          ...imovelRes,
-          visita_dados: {
-            horario_visita: horario,
-            situacao: { value: form.situacao, label: "" },
-            focos_eliminados: dadosRegistro.focos_eliminados,
-            tratado: form.tratado,
-            quantidade_larvicida: dadosRegistro.quantidade_larvicida,
-            depositos_tratados: dadosRegistro.depositos_tratados,
-          },
-        },
-      ]);
-      setSuccessMsg(`Imóvel registrado: ${imovelRes.endereco_completo}`);
-      setStep("visita_aberta");
-    } catch (err: any) {
-      if (isErroDeRede(err)) {
-        // ─── Sem sinal: guarda na outbox e segue trabalhando ─────────────────
-        outbox.enqueue("registrar_imovel", {
-          visita_id: visitaAberta.id,
-          quadra_id: quadraSelecionada.id,
-          imovel: dadosImovel,
-          registro: dadosRegistro,
-        });
-        refreshPendentesSync();
-        setImoveis((prev) => [
-          ...prev,
-          {
-            id: -Date.now(), // id temporário local
-            ...dadosImovel,
-            endereco_completo: `${dadosImovel.logradouro}${dadosImovel.numero ? ", " + dadosImovel.numero : ""}`,
-            tipo_imovel: { value: form.tipo_imovel, label: form.tipo_imovel },
-            ativo: true,
-            created_at: null,
-            pendente_sync: true,
-            visita_dados: {
-              horario_visita: horario,
-              situacao: { value: form.situacao, label: "" },
-              focos_eliminados: dadosRegistro.focos_eliminados,
-              tratado: form.tratado,
-              quantidade_larvicida: dadosRegistro.quantidade_larvicida,
-              depositos_tratados: dadosRegistro.depositos_tratados,
-            },
-          } as Imovel,
-        ]);
-        setSuccessMsg("Sem conexão — imóvel salvo no aparelho. Será sincronizado.");
-        setStep("visita_aberta");
-      } else {
-        setError(
-          err?.response?.data?.message ?? "Não foi possível salvar o imóvel."
-        );
-      }
-    } finally {
+    } catch {
+      setError("Não foi possível salvar o imóvel no aparelho.");
       setLoading(false);
+      return;
     }
-  }, [visitaAberta, quadraSelecionada, form, iniciadaEm, posicaoInicio]);
+
+    const enderecoCompleto = `${dadosImovel.logradouro}${dadosImovel.numero ? ", " + dadosImovel.numero : ""}`;
+    setImoveis((prev) => [
+      ...prev,
+      {
+        id: -Date.now(), // id temporário local — substituído quando a sincronização confirma
+        ...dadosImovel,
+        endereco_completo: enderecoCompleto,
+        tipo_imovel: { value: form.tipo_imovel, label: form.tipo_imovel },
+        ativo: true,
+        created_at: null,
+        pendente_sync: true,
+        client_uuid: clientUuid,
+        visita_dados: {
+          horario_visita: horario,
+          situacao: { value: form.situacao, label: "" },
+          focos_eliminados: dadosRegistro.focos_eliminados,
+          tratado: form.tratado,
+          quantidade_larvicida: dadosRegistro.quantidade_larvicida,
+          depositos_tratados: dadosRegistro.depositos_tratados,
+        },
+      } as Imovel,
+    ]);
+    setSuccessMsg(`Imóvel registrado: ${enderecoCompleto}`);
+    setStep("visita_aberta");
+    setLoading(false);
+    refreshPendentesSync();
+
+    // Dispara a sincronização sem travar a navegação — se já tiver uma em
+    // andamento (ex.: outro imóvel salvo segundos atrás), reaproveita.
+    sincronizarPendentes().finally(() => {
+      refreshPendentesSync();
+      atualizarStatusSync(clientUuid);
+    });
+  }, [visitaAberta, quadraSelecionada, form, iniciadaEm, posicaoInicio, atualizarStatusSync]);
 
   // ─── Encerrar visitas do DIA (pausa/fim de expediente) ─────────────────────
   // A quadra CONTINUA em_andamento. Amanhã o agente retoma de onde parou.

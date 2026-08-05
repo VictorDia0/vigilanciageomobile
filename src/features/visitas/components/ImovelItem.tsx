@@ -1,4 +1,4 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { C, shadows } from "@/src/theme/tokens";
@@ -16,13 +16,21 @@ export function ImovelItem({ imovel }: Props) {
   const cfg = situacaoCfg(sitVal || null);
   const horario = imovel.visita_dados?.horario_visita;
   const tipo = imovel.tipo_imovel?.label ?? "Imóvel";
+  const comErro = !!imovel.sync_erro;
   const podeAbrirDetalhes = imovel.id > 0 && !imovel.pendente_sync;
+
+  const verErro = () => {
+    Alert.alert(
+      "Erro ao sincronizar",
+      `${imovel.sync_erro}\n\nO registro continua salvo no aparelho. Veja em Perfil > Sincronização pra tentar de novo ou descartar.`
+    );
+  };
 
   return (
     <Pressable
       style={s.card}
-      disabled={!podeAbrirDetalhes}
-      onPress={() =>
+      disabled={!podeAbrirDetalhes && !comErro}
+      onPress={comErro ? verErro : () =>
         router.push({
           pathname: "/(app)/visitas/imovel/[id]",
           params: { id: String(imovel.id), imovel: JSON.stringify(imovel) },
@@ -54,7 +62,9 @@ export function ImovelItem({ imovel }: Props) {
         </View>
       </View>
 
-      {imovel.pendente_sync ? (
+      {comErro ? (
+        <Ionicons name="alert-circle" size={18} color={C.danger} />
+      ) : imovel.pendente_sync ? (
         <Ionicons name="cloud-upload-outline" size={18} color={C.warning} />
       ) : null}
       {sitVal ? <StatusPill label={cfg.label} color={cfg.color} /> : null}

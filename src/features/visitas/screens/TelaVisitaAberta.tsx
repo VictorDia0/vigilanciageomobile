@@ -111,7 +111,7 @@ export function TelaVisitaAberta() {
         {pendentesSync > 0 && (
           <WarningBanner
             icon="cloud-upload-outline"
-            message={`${pendentesSync} registro(s) offline — toque para sincronizar`}
+            message={`${pendentesSync} registro(s) pendente(s) — toque para sincronizar`}
             onPress={sincronizar}
           />
         )}

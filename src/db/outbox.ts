@@ -28,6 +28,8 @@ export interface RegistrarImovelOffline {
     sem_numero: boolean;
     tipo_imovel: string;
   };
+  /** URIs locais (expo-image-picker) — o upload de verdade só acontece na sincronização. */
+  fotosLocais?: string[];
   registro: {
     horario_visita: string;
     situacao: string;
@@ -35,6 +37,8 @@ export interface RegistrarImovelOffline {
     tratado: boolean;
     quantidade_larvicida: number | null;
     depositos_tratados: number | null;
+    /** Já enviadas — só populado se o item vier de um caminho que já fez o upload antes de enfileirar. */
+    fotos?: string[];
     latitude?: number;
     longitude?: number;
     mocked?: boolean;
@@ -149,6 +153,16 @@ export const outbox = {
 
   remover(id: number) {
     getDb().runSync("DELETE FROM outbox WHERE id = ?", [id]);
+  },
+
+  /** Estado atual de um item pela client_uuid — usado pra refletir sucesso/erro
+   * de sincronização de volta numa entidade exibida na tela (ex.: Imovel local). */
+  buscarPorUuid(clientUuid: string): OutboxItem | null {
+    const row = getDb().getFirstSync<any>(
+      "SELECT * FROM outbox WHERE client_uuid = ?",
+      [clientUuid]
+    );
+    return row ? { ...row, payload: JSON.parse(row.payload) } : null;
   },
 
   registrarErro(id: number, erro: string) {
