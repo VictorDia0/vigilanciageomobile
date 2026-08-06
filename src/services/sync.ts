@@ -20,6 +20,21 @@ export function isErroDeRede(err: any): boolean {
   return !!err && !err.response;
 }
 
+/**
+ * "Já fechada e bloqueada" significa que o objetivo do item (visita fechada)
+ * já foi alcançado -- por uma tentativa anterior desse mesmo item, ou por um
+ * segundo toque em "Encerrar" que enfileirou uma ação duplicada. Sem esse
+ * tratamento, o item nunca sai da fila: toda sincronização futura (disparada
+ * por qualquer ação seguinte do agente) tenta de novo e recebe o mesmo 422
+ * pra sempre, aparecendo como erro "que a sincronização automática não
+ * resolve sozinha" mesmo o resultado desejado já tendo acontecido.
+ */
+function isVisitaJaFechada(err: any): boolean {
+  return (
+    err?.response?.data?.message === "Esta visita já foi fechada e bloqueada."
+  );
+}
+
 let sincronizando: Promise<ResultadoSync> | null = null;
 
 /**
@@ -83,11 +98,19 @@ async function executarSincronizacao(): Promise<ResultadoSync> {
         });
       } else if (item.tipo === "fechar_visita") {
         const p = item.payload as FecharVisitaOffline;
-        await visitaService.fecharVisita(p.visita_id);
+        try {
+          await visitaService.fecharVisita(p.visita_id);
+        } catch (err) {
+          if (!isVisitaJaFechada(err)) throw err;
+        }
       } else if (item.tipo === "encerrar_quadra") {
         const p = item.payload as EncerrarQuadraOffline;
         if (p.visita_id) {
-          await visitaService.fecharVisita(p.visita_id);
+          try {
+            await visitaService.fecharVisita(p.visita_id);
+          } catch (err) {
+            if (!isVisitaJaFechada(err)) throw err;
+          }
         }
         await visitaService.encerrarQuadra(p.quadra_id);
       } else if (item.tipo === "registrar_recuperacao") {
